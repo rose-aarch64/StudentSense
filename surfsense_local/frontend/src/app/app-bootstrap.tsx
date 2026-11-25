@@ -15,7 +15,17 @@ import { getOnboardingStatus } from "@/features/onboarding/api"
 import { OnboardingPage } from "@/features/onboarding/onboarding-page"
 import { intl } from "@/i18n/intl"
 
-import { listWorkspaces, type Workspace } from "@/features/workspaces/api"
+import {
+  listWorkspaceFolders,
+  listWorkspaces,
+  type Workspace,
+  type WorkspaceFolder,
+} from "@/features/workspaces/api"
+
+/** Folders only group the rail, so an API without them opens the app ungrouped. */
+function listFolders(): Promise<WorkspaceFolder[]> {
+  return listWorkspaceFolders().catch(() => [])
+}
 
 import {
   expectsDashboard,
@@ -54,6 +64,7 @@ type Fetched =
       selection: ModelSelection | null
       availability: Availability
       workspaces: Workspace[]
+      folders: WorkspaceFolder[]
     }
   | { status: "error"; message: string }
 
@@ -98,9 +109,10 @@ async function fetchBootstrapState(): Promise<Fetched> {
       return { status: "onboarding-required" }
     }
     rememberDashboard()
-    const [selection, workspaces] = await Promise.all([
+    const [selection, workspaces, folders] = await Promise.all([
       getGenerationSelection(),
       listWorkspaces(),
+      listFolders(),
     ])
     // Never fails startup: a model that can't be used opens the app without
     // it, and the dashboard says why.
@@ -113,6 +125,7 @@ async function fetchBootstrapState(): Promise<Fetched> {
       selection,
       availability,
       workspaces,
+      folders,
     }
   } catch (error) {
     return { status: "error", message: messageFrom(error) }
@@ -157,14 +170,15 @@ function BootstrapScreens({ startupInput }: { startupInput: StartupInput }) {
         onComplete={(selection) => {
           rememberDashboard()
           setState(startLoading())
-          void Promise.all([listWorkspaces(), loadDashboard()])
-            .then(([workspaces, Dashboard]) =>
+          void Promise.all([listWorkspaces(), listFolders(), loadDashboard()])
+            .then(([workspaces, folders, Dashboard]) =>
               afterComposing({
                 status: "ready",
                 Dashboard,
                 selection,
                 availability: { status: "available" },
                 workspaces,
+                folders,
               })
             )
             .then((next) => setState((current) => settle(current, next)))
@@ -219,6 +233,7 @@ function BootstrapScreens({ startupInput }: { startupInput: StartupInput }) {
         selection={state.selection}
         initialAvailability={state.availability}
         initialWorkspaces={state.workspaces}
+        initialFolders={state.folders}
         onModelUnavailable={() =>
           setState((current) =>
             current.status === "ready"

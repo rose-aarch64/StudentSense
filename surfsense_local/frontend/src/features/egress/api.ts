@@ -224,6 +224,24 @@ function describeOne(destination: string, host: string, purpose?: string) {
       body: updatesBody(host, purpose),
     }
   }
+  // The school's Canvas, and the hosts it signs a course's file links to.
+  if (purpose === "canvas") {
+    return {
+      label: host,
+      title: intl.formatMessage({
+        id: "egress_canvas_prompt_title",
+        defaultMessage: "Allow SurfSense to read your Canvas?",
+      }),
+      body: intl.formatMessage(
+        {
+          id: "egress_canvas_prompt_body",
+          defaultMessage:
+            "SurfSense reads your courses, pages and files from {host} with your Canvas access token, so your classes stay up to date. It only reads: nothing is written to Canvas. You can turn this off any time in Settings › Network.",
+        },
+        { host }
+      ),
+    }
+  }
   // Add from the web and the agent read each page from its own site, on the
   // user's connection. Before the hosts below: any of them can be a page's.
   if (purpose === "web_page") {

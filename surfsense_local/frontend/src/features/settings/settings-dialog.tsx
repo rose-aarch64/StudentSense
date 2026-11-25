@@ -12,6 +12,7 @@ import {
 import {
   AiImageEditIcon,
   AudioWaveformIcon,
+  BotIcon,
   BugIcon,
   Chat01Icon,
   ComputerEthernetIcon,
@@ -19,6 +20,7 @@ import {
   CpuIcon,
   Image01Icon,
   InformationCircleIcon,
+  LibraryBigIcon,
   LicenseIcon,
   LockPasswordIcon,
   Mic01Icon,
@@ -41,6 +43,8 @@ import {
   PluginsSettings,
   type PluginsStart,
 } from "@/features/plugins/plugins-settings"
+import { CanvasSettings } from "@/features/canvas/canvas-settings"
+import { PersonaSettings } from "@/features/persona/persona-settings"
 import { LicenseSettings } from "@/features/license/license-settings"
 import { useLicensing } from "@/features/license/use-license"
 import type { ImportAccepted } from "@/features/migration/api"
@@ -85,6 +89,8 @@ export type SettingsSectionId =
   | "office-support"
   | "network"
   | "plugins"
+  | "canvas"
+  | "persona"
   | "license"
   | "about"
   | "report-issue"
@@ -230,6 +236,8 @@ const ALL_SECTIONS = [
   { id: "access", group: "settings", icon: LockPasswordIcon },
   { id: "license", group: "settings", icon: LicenseIcon },
   { id: "plugins", group: "settings", icon: PlugIcon },
+  { id: "canvas", group: "settings", icon: LibraryBigIcon },
+  { id: "persona", group: "settings", icon: BotIcon },
   { id: "chat-models", group: "models", icon: Chat01Icon },
   { id: "image-models", group: "models", icon: Image01Icon },
   { id: "image-edit-models", group: "models", icon: AiImageEditIcon },
@@ -345,6 +353,16 @@ const SECTION_LABELS: Record<SettingsSectionId, () => string> = {
     intl.formatMessage({
       id: "settings_nav_plugins_label",
       defaultMessage: "Plugins",
+    }),
+  canvas: () =>
+    intl.formatMessage({
+      id: "settings_nav_canvas_label",
+      defaultMessage: "Canvas",
+    }),
+  persona: () =>
+    intl.formatMessage({
+      id: "settings_nav_persona_label",
+      defaultMessage: "Persona",
     }),
   license: () =>
     intl.formatMessage({
@@ -507,6 +525,8 @@ export function SettingsDialog({
                 onOpenLicense={() => onSectionChange("license")}
               />
             ) : null}
+            {activeSection.id === "canvas" ? <CanvasSettings /> : null}
+            {activeSection.id === "persona" ? <PersonaSettings /> : null}
             {activeSection.id === "license" ? <LicenseSettings /> : null}
             {activeSection.id === "about" ? <AboutSettings /> : null}
             {activeSection.id === "access" ? <AccessSettings /> : null}

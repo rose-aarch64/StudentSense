@@ -73,6 +73,31 @@ describe("SettingsDialog", () => {
     expect(screen.getByRole("heading", { name: "About" })).toBeTruthy()
   })
 
+  it("has a Canvas tab among the settings, which opens the connect form", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) =>
+        String(input) === "/canvas/connection"
+          ? Response.json({ connected: false, base_url: null, user_name: null })
+          : Response.json([])
+      )
+    )
+    const user = userEvent.setup()
+    render(<SettingsHarness />)
+
+    const settings = screen.getByRole("navigation", { name: "Settings" })
+    const canvas = screen.getByRole("button", { name: "Canvas" })
+    expect(settings.contains(canvas)).toBe(true)
+
+    await user.click(canvas)
+
+    expect(
+      screen.getByRole("heading", { level: 2, name: "Canvas" })
+    ).toBeTruthy()
+    expect(await screen.findByLabelText("Access token")).toBeTruthy()
+    vi.unstubAllGlobals()
+  })
+
   it("files issue reports from their own tab in the App group", async () => {
     vi.stubGlobal(
       "fetch",
@@ -123,7 +148,7 @@ describe("SettingsDialog", () => {
 
     const groups = {
       // License only while licensing runs, which no release does (ADR 0092).
-      Settings: ["General", "Plugins"],
+      Settings: ["General", "Plugins", "Canvas", "Persona"],
       Models: [
         "Text gen",
         "Image gen",
@@ -145,8 +170,8 @@ describe("SettingsDialog", () => {
   })
 
   it.each([
-    [true, ["General", "License", "Plugins"]],
-    [false, ["General", "Plugins"]],
+    [true, ["General", "License", "Plugins", "Canvas", "Persona"]],
+    [false, ["General", "Plugins", "Canvas", "Persona"]],
   ])(
     "lists License only while licensing runs (%s)",
     async (licensing, shown) => {
@@ -488,7 +513,7 @@ describe("SettingsDialog in the Docker image", { tags: ["docker"] }, () => {
     const nav = screen.getByRole("navigation", { name: "Settings" })
     expect(
       Array.from(nav.querySelectorAll("button"), (b) => b.textContent)
-    ).toEqual(["General", "Access", "Plugins"])
+    ).toEqual(["General", "Access", "Plugins", "Canvas", "Persona"])
   })
 })
 
