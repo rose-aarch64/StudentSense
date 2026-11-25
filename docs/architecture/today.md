@@ -3,8 +3,6 @@
 A window outside every workspace where the user asks about their day and gets what is due, what is overdue and a suggested order. A persona is a text box in Settings that shapes how the models talk. The window is a row in the sidebar's main nav, above To-do. Its route is `/today`; the persona's are `/persona`.
 
 **Code:** [`surfsense_local/backend/modules/today/`](../../surfsense_local/backend/modules/today/), [`surfsense_local/backend/modules/persona/`](../../surfsense_local/backend/modules/persona/), [`surfsense_local/frontend/src/features/today/`](../../surfsense_local/frontend/src/features/today/), [`surfsense_local/frontend/src/features/persona/`](../../surfsense_local/frontend/src/features/persona/)
-**Proposal:** [Today window and persona](../proposals/today-window.md)
-
 ## Today
 
 `POST /today/ask` takes the question, the user's local time with its zone, and the conversation so far. It reads every unfinished task with its workspace's name ([`open_tasks.py`](../../surfsense_local/backend/modules/today/open_tasks.py)) and writes the day as text ([`picture.py`](../../surfsense_local/backend/modules/today/picture.py)) in the to-do board's own sections ([the board](todos.md#the-board)): the date, then overdue, due today, later this week, next week, in two weeks, and undated. Later, older and finished tasks are left out. Times are Eastern, the board's zone.

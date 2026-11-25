@@ -46,6 +46,17 @@
   </p>
 </div>
 
+> [!IMPORTANT]
+> **This is a personal fork of [MODSetter/SurfSense](https://github.com/MODSetter/SurfSense)** on the branch `feat/todo-and-canvas`, not an official release. It adds:
+>
+> - a **to-do list** (due dates, grouped by week), and a **Today** window where you ask what is due and in what order
+> - a **Canvas LMS connection** that files each course's assignments and files into a workspace, and refreshes the to-do list on a schedule (off until you turn it on in Settings › Canvas)
+> - **workspace folders and icons**, with a labeled workspace rail
+> - a **phone layout** below 1024 px wide: a drawer, a full-screen to-do list and a citation sheet
+> - a **persona** text box in Settings that sets how the models talk
+>
+> The download links and install scripts below fetch upstream's builds, which do not have these. To run the fork, build the Docker image from this checkout: `docker build -f docker/surfsense/Dockerfile -t surfsense:local .` Docs for each feature are in [`docs/architecture/`](docs/architecture/): [to-do](docs/architecture/todos.md), [Canvas](docs/architecture/canvas.md), [Today](docs/architecture/today.md), [workspace folders](docs/architecture/workspace-folders.md), [phone layout](docs/architecture/phone-layout.md). Only the Docker install has been tried. The new screen text is translated by Claude, not reviewed by a speaker.
+
 **Redline a contract with tracked changes and comments**
 
 https://github.com/user-attachments/assets/88326b9d-e763-46db-9635-75f9df9e8682
