@@ -33,7 +33,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
-import { getFileViewer } from "@/features/file-viewers/registry"
+import { canPreview } from "@/features/source-preview/can-preview"
 import { useModifierHeld } from "@/hooks/use-modifier-held"
 import { intl } from "@/i18n/intl"
 import { cn } from "@/lib/utils"
@@ -97,7 +97,7 @@ export const DocumentRow = memo(function DocumentRow({
     !awaiting
   const processing = document.status === "processing"
   const openable = ready && document.document_type === "FILE"
-  const previewable = getFileViewer(document.mime_type) !== null
+  const previewable = canPreview(document)
   // In Docker opening means downloading, which only the menu offers.
   const titleActionable = previewable || (openable && !downloadsOriginals())
   const [dropdownOpen, setDropdownOpen] = useState(false)
@@ -305,7 +305,7 @@ export const DocumentRow = memo(function DocumentRow({
                       type="button"
                       size="icon-sm"
                       variant="ghost"
-                      className="size-6 shrink-0 opacity-0 group-hover/source:opacity-100 hover:bg-transparent focus-visible:opacity-100 data-popup-open:bg-accent data-popup-open:opacity-100"
+                      className="size-6 shrink-0 opacity-0 group-hover/source:opacity-100 hover:bg-transparent focus-visible:opacity-100 data-popup-open:bg-accent data-popup-open:opacity-100 touch:opacity-100"
                       aria-label={intl.formatMessage(
                         {
                           id: "sources_row_actions_aria",

@@ -155,7 +155,7 @@ function SourceCount({
   return (
     <span
       className={cn(
-        "px-1.5 py-1 text-[11px] font-normal text-muted-foreground tabular-nums select-none",
+        "px-1.5 py-1 text-[11px] font-normal text-muted-foreground tabular-nums select-none max-[380px]:hidden",
         className
       )}
     >
@@ -296,7 +296,9 @@ export function ChatComposer({
         <ComposerPrimitive.TriggerPopoverRoot>
           {/* A Basic chat only filters by source, so naming one would change nothing there. */}
           {agentic ? <SourceMentions mentionables={mentionables} /> : null}
-          {placement === "bottom" ? addMenu("-mr-1.5 mb-0.5") : null}
+          {placement === "bottom"
+            ? addMenu("-mr-1.5 mb-0.5 max-sm:mr-auto")
+            : null}
           <ComposerInput
             placement={placement}
             blocked={inputDisabled}
@@ -385,14 +387,14 @@ export function ChatComposer({
         <div
           {...reveal}
           className={cn(
-            "mt-1 flex min-h-7 items-center justify-between gap-3 px-2",
+            "mt-1 flex min-h-7 items-center justify-between gap-3 px-2 max-sm:flex-wrap",
             reveal.className
           )}
         >
           {/* Keeps its line and leaves the mode and the model name what is
           left, never less than 13rem, so a long translation truncates the
           name before wrapping. */}
-          <p className="max-w-[calc(100%-13rem)] shrink-0 text-left text-[11px] text-muted-foreground select-none">
+          <p className="max-w-[calc(100%-13rem)] shrink-0 text-left text-[11px] text-muted-foreground select-none max-sm:max-w-full">
             {limitNotice ? (
               <span role="status">{limitNotice}</span>
             ) : !model || providerAvailable ? (

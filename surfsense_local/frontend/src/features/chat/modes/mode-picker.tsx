@@ -222,7 +222,9 @@ function ModeTrigger({
           aria-label={ariaLabel}
         >
           <Icon className="size-3.5" />
-          <span className="whitespace-nowrap">{modeLabel(mode)}</span>
+          <span className="whitespace-nowrap max-sm:sr-only">
+            {modeLabel(mode)}
+          </span>
           <ChevronDownIcon className="size-3" />
         </Button>
       }

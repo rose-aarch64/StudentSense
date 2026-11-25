@@ -348,7 +348,7 @@ export const SourcesPanel = memo(function SourcesPanel({
           size="xs"
           variant="ghost"
           // Held in place while hidden, so the header never shifts.
-          className="text-sm text-muted-foreground opacity-0 transition-opacity duration-150 group-hover/sources:opacity-100 focus-visible:opacity-100"
+          className="text-sm text-muted-foreground opacity-0 transition-opacity duration-150 group-hover/sources:opacity-100 focus-visible:opacity-100 touch:opacity-100"
           onClick={onToggleAll}
         >
           {toggleAllLabel}

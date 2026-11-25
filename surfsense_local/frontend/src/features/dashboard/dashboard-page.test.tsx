@@ -981,12 +981,15 @@ describe("dashboard chat", () => {
       name: "Guide.txt",
     })
     await user.click(sourceButton)
-    expect(window.surfsense?.openDocument).toHaveBeenCalledTimes(2)
-    expect(
-      fetchMock.mock.calls.some(
-        ([path]) => String(path) === "/workspaces/1/documents/20"
-      )
-    ).toBe(false)
+    // A click reads the source in the app; only "Open file" leaves it.
+    expect(window.surfsense?.openDocument).toHaveBeenCalledTimes(1)
+    await waitFor(() => {
+      expect(
+        fetchMock.mock.calls.some(
+          ([path]) => String(path) === "/workspaces/1/documents/20"
+        )
+      ).toBe(true)
+    })
     resolveCanonical(Response.json([]))
     await screen.findByRole("button", { name: "Send message" })
     await waitFor(() => {

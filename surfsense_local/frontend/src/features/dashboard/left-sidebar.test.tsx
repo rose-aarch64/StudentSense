@@ -32,6 +32,48 @@ function baseProps() {
 afterEach(cleanup)
 
 describe("LeftSidebar", () => {
+  it("lets a parent own the to-do dialog, so a button outside the sidebar can open it", async () => {
+    const none: never[] = []
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        Response.json({
+          today: "2026-11-24",
+          overdue: none,
+          this_week: none,
+          next_week: none,
+          in_two_weeks: none,
+          future: none,
+          undated: none,
+          done: none,
+          older: none,
+        })
+      )
+    )
+    const onTodosOpenChange = vi.fn()
+    const user = userEvent.setup()
+    const { rerender } = render(
+      <LeftSidebar
+        {...baseProps()}
+        todosOpen={false}
+        onTodosOpenChange={onTodosOpenChange}
+      />
+    )
+
+    await user.click(screen.getByRole("button", { name: "To-do" }))
+    expect(onTodosOpenChange).toHaveBeenCalledWith(true)
+    expect(screen.queryByRole("dialog", { name: "To-do" })).toBeNull()
+
+    rerender(
+      <LeftSidebar
+        {...baseProps()}
+        todosOpen={true}
+        onTodosOpenChange={onTodosOpenChange}
+      />
+    )
+    expect(await screen.findByRole("dialog", { name: "To-do" })).toBeTruthy()
+  })
+
   it("keeps the brand, New chat and Chats rows, with the sources slot below", () => {
     render(<LeftSidebar {...baseProps()} />)
 
@@ -46,6 +88,41 @@ describe("LeftSidebar", () => {
 
     expect(screen.getByRole("button", { name: "Chats" })).toBeTruthy()
     expect(screen.getByTestId("sources-slot")).toBeTruthy()
+  })
+
+  it("puts Today and To-do with the main rows, right under Chats", async () => {
+    const none: never[] = []
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        Response.json({
+          today: "2026-11-24",
+          overdue: none,
+          this_week: none,
+          next_week: none,
+          in_two_weeks: none,
+          future: none,
+          undated: none,
+          done: none,
+          older: none,
+        })
+      )
+    )
+    const user = userEvent.setup()
+    render(<LeftSidebar {...baseProps()} />)
+
+    const rows = screen
+      .getAllByRole("button")
+      .map((button) => button.textContent)
+      .filter((text) =>
+        ["New chat", "Chats", "Today", "To-do"].includes(text ?? "")
+      )
+    expect(rows).toEqual(["New chat", "Chats", "Today", "To-do"])
+
+    await user.click(screen.getByRole("button", { name: "To-do" }))
+
+    expect(await screen.findByText("Nothing to do")).toBeTruthy()
+    vi.unstubAllGlobals()
   })
 
   it("opens the chats dialog from the Chats row", async () => {

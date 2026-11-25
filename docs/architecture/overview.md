@@ -134,6 +134,8 @@ The rules that keep the processes out of each other's way:
 
 - [Data model](data-model.md): tables, the search index, revisions, files on disk.
 - [Documents](documents.md): workspaces, upload, notes, the ingest pipeline.
+- [Phone layout](phone-layout.md): the one-column dashboard below 1024 px, with the sidebar and citations as full-screen sheets, and the touch rules.
+- [Workspace folders](workspace-folders.md): the rail, folders of workspaces, workspace icons, and the folder a Canvas sync files a term's courses in.
 - [Search](search.md): `retrieve()`.
 - [Embedding model](embedding.md): the model that embeds the library, chosen once at onboarding.
 - [Chat](chat.md): grounding, the stream, runs, citations.

@@ -38,7 +38,8 @@ const buttonVariants = cva(
           "size-6 rounded-[min(var(--radius-md),10px)] in-data-[slot=button-group]:rounded-lg [&_svg:not([class*='size-'])]:size-3",
         "icon-sm":
           "size-7 rounded-[min(var(--radius-md),12px)] in-data-[slot=button-group]:rounded-lg",
-        "icon-lg": "size-9",
+        // 44 px where a finger, not a pointer, presses it.
+        "icon-lg": "size-9 touch:size-11",
         "icon-xl": "size-10 [&_svg:not([class*='size-'])]:size-4.5",
         "icon-2xl": "size-11 [&_svg:not([class*='size-'])]:size-5",
       },

@@ -5,6 +5,8 @@ import {
   CircleAlertIcon,
   Loader2Icon,
   PencilEdit02Icon,
+  SunIcon,
+  Task01Icon,
 } from "@/components/ui/icons"
 
 import { Button } from "@/components/ui/button"
@@ -12,6 +14,8 @@ import { ChatsDialog } from "@/features/chat/chats-dialog"
 import type { ChatThread } from "@/features/chat/api"
 import type { RunState } from "@/features/chat/runs/run-store"
 import { useStartupReveal } from "@/features/startup/use-startup-reveal"
+import { TodayDialog } from "@/features/today/today-dialog"
+import { TodoDialog } from "@/features/todos/todo-dialog"
 import { intl } from "@/i18n/intl"
 import { cn } from "@/lib/utils"
 
@@ -43,7 +47,7 @@ function SidebarNavButton({
     <Button
       static
       variant="ghost"
-      className="w-full justify-start px-2"
+      className="w-full justify-start px-2 touch:min-h-11"
       onClick={onClick}
       aria-label={ariaLabel}
     >
@@ -149,6 +153,8 @@ export const LeftSidebar = memo(function LeftSidebar({
   headerStart,
   sources,
   footer,
+  todosOpen: todosOpenFromParent,
+  onTodosOpenChange,
 }: {
   threads: ChatThread[]
   activeThreadId: number | null
@@ -172,8 +178,18 @@ export const LeftSidebar = memo(function LeftSidebar({
   sources: ReactNode
   // Pinned under the sources list, against the bottom edge.
   footer?: ReactNode
+  // When both are given, the parent owns the to-do dialog, so a button outside
+  // the sidebar can open it too; otherwise the sidebar keeps its own state.
+  todosOpen?: boolean
+  onTodosOpenChange?: (open: boolean) => void
 }) {
   const [chatsOpen, setChatsOpen] = useState(false)
+  const [ownTodosOpen, setOwnTodosOpen] = useState(false)
+  const todosControlled =
+    todosOpenFromParent !== undefined && onTodosOpenChange !== undefined
+  const todosOpen = todosControlled ? todosOpenFromParent : ownTodosOpen
+  const setTodosOpen = todosControlled ? onTodosOpenChange : setOwnTodosOpen
+  const [todayOpen, setTodayOpen] = useState(false)
   const reveal = useStartupReveal()
 
   return (
@@ -200,6 +216,22 @@ export const LeftSidebar = memo(function LeftSidebar({
             icon={Chat01Icon}
             onClick={() => setChatsOpen(true)}
             {...chatsActivity(activeThreadId, runStates, unreadThreadIds)}
+          />
+          <SidebarNavButton
+            label={intl.formatMessage({
+              id: "today_dialog_title",
+              defaultMessage: "Today",
+            })}
+            icon={SunIcon}
+            onClick={() => setTodayOpen(true)}
+          />
+          <SidebarNavButton
+            label={intl.formatMessage({
+              id: "dashboard_footer_todos_button",
+              defaultMessage: "To-do",
+            })}
+            icon={Task01Icon}
+            onClick={() => setTodosOpen(true)}
           />
           {actions.map(({ key, ...action }) => (
             <SidebarNavButton key={key} {...action} />
@@ -235,6 +267,8 @@ export const LeftSidebar = memo(function LeftSidebar({
         runStates={runStates}
         unreadThreadIds={unreadThreadIds}
       />
+      <TodoDialog open={todosOpen} onOpenChange={setTodosOpen} />
+      <TodayDialog open={todayOpen} onOpenChange={setTodayOpen} />
     </SidebarFrame>
   )
 })

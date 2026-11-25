@@ -39,7 +39,7 @@ export function ComposerBox({
         // it, and holds that space in its own padding instead.
         className: cn(
           "relative rounded-2xl border bg-card px-1.5 pb-1.5 shadow-sm",
-          placement === "bottom" && "flex items-end gap-2",
+          placement === "bottom" && "flex items-end gap-2 max-sm:flex-wrap",
           className
         ),
       },

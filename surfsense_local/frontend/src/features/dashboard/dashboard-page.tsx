@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react"
 import { AgentApprovalsProvider } from "@/features/agent/agent-approvals"
 import { IN_CONTAINER } from "@/app/in-container"
 import {
@@ -47,7 +54,7 @@ import {
 import { SourcesPanel } from "@/features/sources/sources-panel"
 import { useSources } from "@/features/sources/use-sources"
 import { useWebSources } from "@/features/sources/web/use-web-sources"
-import { getFileViewer } from "@/features/file-viewers/registry"
+import { canPreview } from "@/features/source-preview/can-preview"
 import { SourcePreviewPanel } from "@/features/source-preview/source-preview-panel"
 import { ArtifactList } from "@/features/studio/artifact-list"
 import { ArtifactPanel } from "@/features/studio/artifact-panel"
@@ -59,7 +66,7 @@ import {
 import { StudioPanel } from "@/features/studio/studio-panel"
 import { useStudio } from "@/features/studio/use-studio"
 import { TitleBarUpdate } from "@/features/updates/title-bar-update"
-import type { Workspace } from "@/features/workspaces/api"
+import type { Workspace, WorkspaceFolder } from "@/features/workspaces/api"
 import { useWorkspaces } from "@/features/workspaces/use-workspaces"
 import { useStartupReveal } from "@/features/startup/use-startup-reveal"
 import { useStableCallback } from "@/hooks/use-stable-callback"
@@ -87,8 +94,12 @@ import { LeftSidebar, type SidebarNavAction } from "./left-sidebar"
 import { RightPanel } from "./right-panel"
 import { CornerToggle, CornerToggleSlot } from "./corner-toggle"
 import { RightPanelToggle } from "./right-panel-toggle"
+import { CompactColumns } from "./compact-columns"
+import { CompactMenuButton, CompactTodoButton } from "./compact-header-buttons"
 import { DashboardShell } from "./dashboard-shell"
 import { SidebarFooter } from "./sidebar-footer"
+import { useAppHeight } from "./use-app-height"
+import { useCompactLayout } from "./use-compact-layout"
 import { SidebarToggle } from "./sidebar-toggle"
 import { useSidebarShortcut } from "./use-sidebar-shortcut"
 
@@ -122,6 +133,7 @@ function WorkspaceDashboard({
   onOpenOfficeSupport,
   onOpenPlugins,
   modelsVisited,
+  compactRail,
 }: {
   workspace: Workspace
   selection: ModelSelection | null
@@ -140,8 +152,16 @@ function WorkspaceDashboard({
   onOpenOfficeSupport: () => void
   onOpenPlugins: (start?: PluginsStart) => void
   modelsVisited: number
+  // The workspace rail, which a phone shows in the sidebar's sheet.
+  compactRail?: ReactNode
 }) {
   const reveal = useStartupReveal()
+  const compact = useCompactLayout()
+  useAppHeight(compact)
+  // The phone's drawer, and the to-do list its header button opens. Neither is
+  // saved: the drawer starts closed and the desktop's sidebar choice is left be.
+  const [drawerOpen, setDrawerOpen] = useState(false)
+  const [todosOpen, setTodosOpen] = useState(false)
   const [inspect, setInspect] = useState<Inspect>(null)
   const [rightPanelOpen, setRightPanelOpen] = useState(readRightPanelOpen)
   const [sidebarWanted, setSidebarWanted] = useState(readSidebarOpen)
@@ -204,16 +224,11 @@ function WorkspaceDashboard({
     (document) => document.id === sourcePreviewId
   )
   const sourcePreviewOpen =
-    sourcePreview?.document_type === "FILE" &&
-    getFileViewer(sourcePreview.mime_type) !== null
+    sourcePreview !== undefined && canPreview(sourcePreview)
 
   useEffect(() => {
     if (sourcePreviewId === null || sources.isLoading) return
-    if (
-      !sourcePreview ||
-      sourcePreview.document_type !== "FILE" ||
-      !getFileViewer(sourcePreview.mime_type)
-    ) {
+    if (!sourcePreview || !canPreview(sourcePreview)) {
       writeSourcePreview(workspace.id, null)
     }
   }, [sourcePreview, sourcePreviewId, sources.isLoading, workspace.id])
@@ -383,6 +398,16 @@ function WorkspaceDashboard({
   const sidebarTitleAnimationComplete = useStableCallback(() =>
     chat.finishTitleAnimation()
   )
+  // On a phone a choice in the drawer closes it.
+  const closeDrawer = useStableCallback(() => setDrawerOpen(false))
+  const drawerNewChat = useStableCallback(() => {
+    startNewChat()
+    setDrawerOpen(false)
+  })
+  const drawerSelectThread = useStableCallback((threadId: number) => {
+    sidebarSelectThread(threadId)
+    setDrawerOpen(false)
+  })
   // A source preview needs its column, so it shows over a hidden sidebar.
   const sidebarOpen = sidebarWanted || sourcePreviewOpen
   const setSidebar = useStableCallback((open: boolean) => {
@@ -458,6 +483,155 @@ function WorkspaceDashboard({
       className={className}
     />
   )
+  // Built once here, so the desktop columns and the phone's sheets place the
+  // same content.
+  const detailNode =
+    inspect?.kind === "citation" ? (
+      <CitationPanel
+        workspaceId={workspace.id}
+        chunkId={inspect.chunkId}
+        onClose={closeInspect}
+        onOpen={(id) => void sources.openOriginal(id)}
+      />
+    ) : inspect?.kind === "artifact" ? (
+      <ArtifactPanel
+        workspaceId={workspace.id}
+        artifactId={inspect.artifactId}
+        artifacts={studio.artifacts}
+        onOpenVersion={openArtifact}
+        onRefine={studio.refine}
+        onImageEdit={studio.editImage}
+        onOpenModelSettings={onOpenModelSettings}
+        onDecideAll={studio.decideAll}
+        onClose={closeInspect}
+      />
+    ) : null
+  const sidebarNode = (
+    <>
+      {sourcePreviewOpen && sourcePreview ? (
+        <SourcePreviewPanel
+          workspaceId={workspace.id}
+          document={sourcePreview}
+          onOpen={() => void sources.openOriginal(sourcePreview.id)}
+          onClose={closeSourcePreview}
+        />
+      ) : null}
+      {/* Hidden, not unmounted, so the sources list keeps its scroll. */}
+      <div hidden={sourcePreviewOpen} className="flex h-full min-h-0 flex-col">
+        <LeftSidebar
+          threads={chat.threads}
+          activeThreadId={chat.activeThreadId}
+          autoNamingThreadId={chat.autoNamingThreadId}
+          animatingTitleThreadId={chat.animatingTitleThreadId}
+          isLoadingThreads={chat.isLoadingThreads}
+          onNewChat={compact ? drawerNewChat : sidebarNewChat}
+          onSelectThread={compact ? drawerSelectThread : sidebarSelectThread}
+          onRenameThread={sidebarRenameThread}
+          onDeleteThread={sidebarDeleteThread}
+          onTitleAnimationComplete={sidebarTitleAnimationComplete}
+          runStates={chat.runStates}
+          unreadThreadIds={chat.unreadThreadIds}
+          actions={sidebarActions}
+          headerStart={compact ? null : sidebarHeaderStart}
+          sources={sourcesList}
+          footer={sidebarFooter}
+          todosOpen={compact ? todosOpen : undefined}
+          onTodosOpenChange={compact ? setTodosOpen : undefined}
+        />
+      </div>
+    </>
+  )
+  // A function of the two header slots: the desktop keeps room for its corner
+  // toggles there, the phone puts its menu and to-do buttons.
+  const renderChat = (headerStart: ReactNode, headerEnd: ReactNode) => (
+    <AgentApprovalsProvider
+      approvals={chat.approvals}
+      answer={chat.answerApproval}
+    >
+      <ThreadPanel
+        headerStart={headerStart}
+        headerEnd={headerEnd}
+        live={chat.liveThread}
+        thread={chat.activeThread}
+        view={chat.conversationView}
+        model={selection}
+        isLoading={chat.isLoadingMessages}
+        isRunning={chat.isRunning}
+        animateTitle={chat.activeThreadId === chat.animatingTitleThreadId}
+        providerAvailable={providerAvailable}
+        notice={
+          modelIssue ? (
+            <ModelIssueNotice
+              issue={modelIssue}
+              onAllow={needsConsent ? onAllowModelIssue : undefined}
+              onOpenSettings={onModelIssueSettings}
+            />
+          ) : extraUsage && onClaudePlan ? (
+            <ExtraUsageNotice usage={extraUsage} />
+          ) : null
+        }
+        blockedPlaceholder={composerHold}
+        onCitation={onCitation}
+        onModelSetup={onModelRequired}
+        onModelSelected={onModelSelected}
+        onRetry={chat.retry}
+        onNewChat={startNewChat}
+        sourceCount={sources.includedDocumentIds.length}
+        mentionables={mentionables}
+        onUploadSources={(files) => void sources.upload(files)}
+        isUploadingSources={sources.isUploading}
+        onOpenPlugins={onOpenPlugins}
+        dictation={chat.dictation}
+        onOpenSpeechSettings={openSpeechSettings}
+        onTitleAnimationComplete={chat.finishTitleAnimation}
+        autoNamingThreadId={chat.autoNamingThreadId}
+        onRename={chat.rename}
+        onDelete={async (threadId) => {
+          if (threadId === chat.activeThreadId) closeInspect()
+          await chat.removeThread(threadId)
+        }}
+      />
+    </AgentApprovalsProvider>
+  )
+  // Inside the opener, so a run's Open in Studio shows its copy here.
+  const jobsDialog = (
+    <JobsDialog
+      open={jobsOpen}
+      onOpenChange={setJobsOpen}
+      workspaceId={workspace.id}
+      documents={sources.documents}
+      includedDocumentIds={sources.includedDocumentIds}
+      selection={selection}
+      providerAvailable={providerAvailable}
+      onUploadSources={sources.upload}
+      onOpenModelSettings={openModelSettings}
+      onOpenLicense={openLicense}
+    />
+  )
+  // Narrower than the desktop layout fits: one column with the sidebar and the
+  // detail as full-screen sheets. The desktop's JSX below is left as it is.
+  if (compact) {
+    return (
+      <OfficeOfferContext.Provider value={officeOffer}>
+        <OpenArtifactContext.Provider value={openArtifact}>
+          <CompactColumns
+            chat={renderChat(
+              <CompactMenuButton onClick={() => setDrawerOpen(true)} />,
+              <CompactTodoButton onClick={() => setTodosOpen(true)} />
+            )}
+            rail={compactRail}
+            sidebar={sidebarNode}
+            drawerOpen={drawerOpen}
+            onDrawerClose={closeDrawer}
+            detail={detailNode}
+            detailOpen={inspect !== null}
+            onDetailClose={closeInspect}
+          />
+          {jobsDialog}
+        </OpenArtifactContext.Provider>
+      </OfficeOfferContext.Provider>
+    )
+  }
   return (
     <OfficeOfferContext.Provider value={officeOffer}>
       <OpenArtifactContext.Provider value={openArtifact}>
@@ -516,38 +690,7 @@ function WorkspaceDashboard({
             On a narrow window it gives way first, down to the sidebar's
             minimum, before the right panel does: the chat keeps its own. */}
           <SidebarColumn id={LEFT_COLUMN_ID} peekable>
-            {sourcePreviewOpen && sourcePreview ? (
-              <SourcePreviewPanel
-                workspaceId={workspace.id}
-                document={sourcePreview}
-                onOpen={() => void sources.openOriginal(sourcePreview.id)}
-                onClose={closeSourcePreview}
-              />
-            ) : null}
-            {/* Hidden, not unmounted, so the sources list keeps its scroll. */}
-            <div
-              hidden={sourcePreviewOpen}
-              className="flex h-full min-h-0 flex-col"
-            >
-              <LeftSidebar
-                threads={chat.threads}
-                activeThreadId={chat.activeThreadId}
-                autoNamingThreadId={chat.autoNamingThreadId}
-                animatingTitleThreadId={chat.animatingTitleThreadId}
-                isLoadingThreads={chat.isLoadingThreads}
-                onNewChat={sidebarNewChat}
-                onSelectThread={sidebarSelectThread}
-                onRenameThread={sidebarRenameThread}
-                onDeleteThread={sidebarDeleteThread}
-                onTitleAnimationComplete={sidebarTitleAnimationComplete}
-                runStates={chat.runStates}
-                unreadThreadIds={chat.unreadThreadIds}
-                actions={sidebarActions}
-                headerStart={sidebarHeaderStart}
-                sources={sourcesList}
-                footer={sidebarFooter}
-              />
-            </div>
+            {sidebarNode}
           </SidebarColumn>
           {/* Hidden, the sidebar has no edge to drag. */}
           {sidebarOpen ? (
@@ -561,67 +704,17 @@ function WorkspaceDashboard({
             />
           ) : null}
           <ChatColumn>
-            <AgentApprovalsProvider
-              approvals={chat.approvals}
-              answer={chat.answerApproval}
-            >
-              <ThreadPanel
-                // Hidden, the chat's header runs under the corner toggle: keep its
-                // slot. -ml-3 undoes the 12 px of its px-5 over the corner's 8.
-                headerStart={
-                  IN_CONTAINER && !sidebarOpen ? (
-                    <CornerToggleSlot className="-ml-3" />
-                  ) : null
-                }
-                // Hidden, the chat's header runs under the corner toggle: keep its slot.
-                headerEnd={
-                  IN_CONTAINER && !rightPanelOpen ? (
-                    <CornerToggleSlot className="-mr-1" />
-                  ) : null
-                }
-                live={chat.liveThread}
-                thread={chat.activeThread}
-                view={chat.conversationView}
-                model={selection}
-                isLoading={chat.isLoadingMessages}
-                isRunning={chat.isRunning}
-                animateTitle={
-                  chat.activeThreadId === chat.animatingTitleThreadId
-                }
-                providerAvailable={providerAvailable}
-                notice={
-                  modelIssue ? (
-                    <ModelIssueNotice
-                      issue={modelIssue}
-                      onAllow={needsConsent ? onAllowModelIssue : undefined}
-                      onOpenSettings={onModelIssueSettings}
-                    />
-                  ) : extraUsage && onClaudePlan ? (
-                    <ExtraUsageNotice usage={extraUsage} />
-                  ) : null
-                }
-                blockedPlaceholder={composerHold}
-                onCitation={onCitation}
-                onModelSetup={onModelRequired}
-                onModelSelected={onModelSelected}
-                onRetry={chat.retry}
-                onNewChat={startNewChat}
-                sourceCount={sources.includedDocumentIds.length}
-                mentionables={mentionables}
-                onUploadSources={(files) => void sources.upload(files)}
-                isUploadingSources={sources.isUploading}
-                onOpenPlugins={onOpenPlugins}
-                dictation={chat.dictation}
-                onOpenSpeechSettings={openSpeechSettings}
-                onTitleAnimationComplete={chat.finishTitleAnimation}
-                autoNamingThreadId={chat.autoNamingThreadId}
-                onRename={chat.rename}
-                onDelete={async (threadId) => {
-                  if (threadId === chat.activeThreadId) closeInspect()
-                  await chat.removeThread(threadId)
-                }}
-              />
-            </AgentApprovalsProvider>
+            {renderChat(
+              // Hidden, the chat's header runs under the corner toggle: keep its
+              // slot. -ml-3 undoes the 12 px of its px-5 over the corner's 8.
+              IN_CONTAINER && !sidebarOpen ? (
+                <CornerToggleSlot className="-ml-3" />
+              ) : null,
+              // Hidden, the chat's header runs under the corner toggle: keep its slot.
+              IN_CONTAINER && !rightPanelOpen ? (
+                <CornerToggleSlot className="-mr-1" />
+              ) : null
+            )}
           </ChatColumn>
           {/* Collapsed, the rail has no edge to drag. */}
           {rightPanelOpen ? (
@@ -640,28 +733,7 @@ function WorkspaceDashboard({
                 toggle={
                   IN_CONTAINER ? <CornerToggleSlot className="-mr-1" /> : null
                 }
-                inspect={
-                  inspect?.kind === "citation" ? (
-                    <CitationPanel
-                      workspaceId={workspace.id}
-                      chunkId={inspect.chunkId}
-                      onClose={closeInspect}
-                      onOpen={(id) => void sources.openOriginal(id)}
-                    />
-                  ) : inspect?.kind === "artifact" ? (
-                    <ArtifactPanel
-                      workspaceId={workspace.id}
-                      artifactId={inspect.artifactId}
-                      artifacts={studio.artifacts}
-                      onOpenVersion={openArtifact}
-                      onRefine={studio.refine}
-                      onImageEdit={studio.editImage}
-                      onOpenModelSettings={onOpenModelSettings}
-                      onDecideAll={studio.decideAll}
-                      onClose={closeInspect}
-                    />
-                  ) : null
-                }
+                inspect={detailNode}
                 studio={
                   <StudioPanel
                     workspaceId={workspace.id}
@@ -693,19 +765,7 @@ function WorkspaceDashboard({
             </div>
           </RightPanelRail>
         </DashboardColumns>
-        {/* Inside the opener, so a run's Open in Studio shows its copy here. */}
-        <JobsDialog
-          open={jobsOpen}
-          onOpenChange={setJobsOpen}
-          workspaceId={workspace.id}
-          documents={sources.documents}
-          includedDocumentIds={sources.includedDocumentIds}
-          selection={selection}
-          providerAvailable={providerAvailable}
-          onUploadSources={sources.upload}
-          onOpenModelSettings={openModelSettings}
-          onOpenLicense={openLicense}
-        />
+        {jobsDialog}
       </OpenArtifactContext.Provider>
     </OfficeOfferContext.Provider>
   )
@@ -765,11 +825,14 @@ function WorkspacesEmpty({
   )
 }
 
+const NO_FOLDERS: WorkspaceFolder[] = []
+
 export function DashboardPage({
   selection,
   initialProviderAvailable = false,
   initialAvailability,
   initialWorkspaces,
+  initialFolders = NO_FOLDERS,
   onModelUnavailable = () => undefined,
   onModelSelected,
 }: {
@@ -779,10 +842,12 @@ export function DashboardPage({
   // What startup found, so this screen need not check the same model again.
   initialAvailability?: Availability
   initialWorkspaces: Workspace[]
+  initialFolders?: WorkspaceFolder[]
   onModelUnavailable?: () => void
   onModelSelected: (selection: ModelSelection) => void
 }) {
-  const workspaces = useWorkspaces(initialWorkspaces)
+  const compact = useCompactLayout()
+  const workspaces = useWorkspaces(initialWorkspaces, initialFolders)
   const initial: Availability =
     initialAvailability ??
     (initialProviderAvailable
@@ -908,22 +973,34 @@ export function DashboardPage({
     )
   }
 
+  // Beside the columns on a desktop, in the sidebar's sheet on a phone.
+  const rail = (
+    <WorkspaceRail
+      workspaces={workspaces.workspaces}
+      folders={workspaces.folders}
+      activeWorkspaceId={workspaces.activeWorkspace.id}
+      isMutating={workspaces.isMutating}
+      onSelect={workspaces.select}
+      onCreate={workspaces.create}
+      onRename={workspaces.rename}
+      onDelete={workspaces.remove}
+      onOpenSettings={() => openSettings("general")}
+      onSetIcon={workspaces.setIcon}
+      onMoveToFolder={workspaces.moveToFolder}
+      onCreateFolder={workspaces.createFolder}
+      onRenameFolder={workspaces.renameFolder}
+      onDeleteFolder={workspaces.removeFolder}
+    />
+  )
+
   return (
     // Above the workspace, so a mode picked for the next chat holds across them.
     <NewChatModeProvider>
       <DashboardShell>
-        <WorkspaceRail
-          workspaces={workspaces.workspaces}
-          activeWorkspaceId={workspaces.activeWorkspace.id}
-          isMutating={workspaces.isMutating}
-          onSelect={workspaces.select}
-          onCreate={workspaces.create}
-          onRename={workspaces.rename}
-          onDelete={workspaces.remove}
-          onOpenSettings={() => openSettings("general")}
-        />
+        {compact ? null : rail}
         <WorkspaceDashboard
           key={workspaces.activeWorkspace.id}
+          compactRail={compact ? rail : undefined}
           workspace={workspaces.activeWorkspace}
           selection={usableSelection}
           providerAvailable={providerAvailable}

@@ -173,6 +173,7 @@ describe("updates", () => {
     stubUpdateBridge({ automatic: true, state: { status: "idle" } })
     renderFooter()
 
+    // Only the guides: no row for the license or for updates.
     expect(screen.getAllByRole("button")).toHaveLength(1)
     expect(screen.queryByRole("button", { name: /update/i })).toBeNull()
   })

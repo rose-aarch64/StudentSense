@@ -253,7 +253,7 @@ function ReplyHeader({
           <ChevronRightIcon
             aria-hidden
             className={cn(
-              "size-4 shrink-0 opacity-0 transition-[rotate,opacity] duration-200 group-hover/thinking:opacity-100 group-focus-visible/thinking:opacity-100 motion-reduce:transition-none",
+              "size-4 shrink-0 opacity-0 transition-[rotate,opacity] duration-200 group-hover/thinking:opacity-100 group-focus-visible/thinking:opacity-100 motion-reduce:transition-none touch:opacity-100",
               EASE_OUT,
               open && "rotate-90"
             )}

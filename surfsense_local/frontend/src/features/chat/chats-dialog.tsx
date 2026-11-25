@@ -447,7 +447,7 @@ function ChatList({
               static
               variant="ghost"
               className={cn(
-                "h-10 w-full min-w-0 justify-start gap-3 overflow-hidden rounded-lg px-2 py-2 text-sm font-normal group-hover:bg-muted dark:group-hover:bg-muted/50",
+                "h-10 w-full min-w-0 justify-start gap-3 overflow-hidden rounded-lg px-2 py-2 text-sm font-normal group-hover:bg-muted dark:group-hover:bg-muted/50 touch:h-11",
                 selected &&
                   "bg-sidebar-accent text-foreground group-hover:text-foreground hover:text-foreground",
                 openDropdownId === thread.id && "bg-muted dark:bg-muted/50"
@@ -547,6 +547,8 @@ function ChatList({
                   "shrink-0 overflow-hidden text-xs text-muted-foreground transition-[opacity,width]",
                   "group-focus-within:w-0 group-focus-within:opacity-0",
                   "group-hover:w-0 group-hover:opacity-0",
+                  // Where nothing hovers, the row's actions button always shows.
+                  "touch:w-0 touch:opacity-0",
                   openDropdownId === thread.id && "w-0 opacity-0"
                 )}
               />
@@ -563,7 +565,7 @@ function ChatList({
                     <Button
                       variant="ghost"
                       size="icon-sm"
-                      className="opacity-0 group-focus-within:opacity-100 group-hover:opacity-100 hover:bg-transparent data-popup-open:bg-accent data-popup-open:opacity-100"
+                      className="opacity-0 group-focus-within:opacity-100 group-hover:opacity-100 hover:bg-transparent data-popup-open:bg-accent data-popup-open:opacity-100 touch:opacity-100"
                       aria-label={intl.formatMessage(
                         {
                           id: "chat_chats_dialog_row_actions_aria",

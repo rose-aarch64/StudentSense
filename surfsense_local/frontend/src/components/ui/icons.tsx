@@ -110,6 +110,36 @@ import {
   YoutubeIcon as YoutubeIconData,
   ZoomInIcon as ZoomInIconData,
   ZoomOutIcon as ZoomOutIconData,
+  AtomIcon as AtomIconData,
+  BankIcon as BankIconData,
+  Book02Icon as Book02IconData,
+  BookOpen01Icon as BookOpen01IconData,
+  Brain02Icon as Brain02IconData,
+  Briefcase01Icon as Briefcase01IconData,
+  Camera01Icon as Camera01IconData,
+  ChartLineData01Icon as ChartLineData01IconData,
+  CodeIcon as CodeIconData,
+  DnaIcon as DnaIconData,
+  EarthIcon as EarthIconData,
+  Flag01Icon as Flag01IconData,
+  GraduationScrollIcon as GraduationScrollIconData,
+  Home01Icon as Home01IconData,
+  LanguageSquareIcon as LanguageSquareIconData,
+  LaptopIcon as LaptopIconData,
+  Leaf01Icon as Leaf01IconData,
+  LibraryIcon as LibraryIconData,
+  MapsIcon as MapsIconData,
+  Menu01Icon as Menu01IconData,
+  Mortarboard01Icon as Mortarboard01IconData,
+  MusicNote01Icon as MusicNote01IconData,
+  PaintBrush01Icon as PaintBrush01IconData,
+  Rocket01Icon as Rocket01IconData,
+  SchoolIcon as SchoolIconData,
+  Shield01Icon as Shield01IconData,
+  StarIcon as StarIconData,
+  Sword01Icon as Sword01IconData,
+  TestTube01Icon as TestTube01IconData,
+  CalculatorIcon as CalculatorIconData,
 } from "@hugeicons/core-free-icons"
 import { HugeiconsIcon } from "@hugeicons/react"
 
@@ -260,6 +290,37 @@ export const Xls01Icon = createIcon(Xls01IconData)
 export const YoutubeIcon = createIcon(YoutubeIconData)
 export const ZoomInIcon = createIcon(ZoomInIconData)
 export const ZoomOutIcon = createIcon(ZoomOutIconData)
+// The workspace icon picker's set; a workspace stores one by its key.
+export const AtomIcon = createIcon(AtomIconData)
+export const BankIcon = createIcon(BankIconData)
+export const Book02Icon = createIcon(Book02IconData)
+export const BookOpen01Icon = createIcon(BookOpen01IconData)
+export const Brain02Icon = createIcon(Brain02IconData)
+export const Briefcase01Icon = createIcon(Briefcase01IconData)
+export const CalculatorIcon = createIcon(CalculatorIconData)
+export const Camera01Icon = createIcon(Camera01IconData)
+export const ChartLineData01Icon = createIcon(ChartLineData01IconData)
+export const CodeIcon = createIcon(CodeIconData)
+export const DnaIcon = createIcon(DnaIconData)
+export const EarthIcon = createIcon(EarthIconData)
+export const Flag01Icon = createIcon(Flag01IconData)
+export const GraduationScrollIcon = createIcon(GraduationScrollIconData)
+export const Home01Icon = createIcon(Home01IconData)
+export const LanguageSquareIcon = createIcon(LanguageSquareIconData)
+export const LaptopIcon = createIcon(LaptopIconData)
+export const Leaf01Icon = createIcon(Leaf01IconData)
+export const LibraryIcon = createIcon(LibraryIconData)
+export const MapsIcon = createIcon(MapsIconData)
+export const Menu01Icon = createIcon(Menu01IconData)
+export const Mortarboard01Icon = createIcon(Mortarboard01IconData)
+export const MusicNote01Icon = createIcon(MusicNote01IconData)
+export const PaintBrush01Icon = createIcon(PaintBrush01IconData)
+export const Rocket01Icon = createIcon(Rocket01IconData)
+export const SchoolIcon = createIcon(SchoolIconData)
+export const Shield01Icon = createIcon(Shield01IconData)
+export const StarIcon = createIcon(StarIconData)
+export const Sword01Icon = createIcon(Sword01IconData)
+export const TestTube01Icon = createIcon(TestTube01IconData)
 
 // Studio's picture types, drawn for their cards rather than taken from the icon set.
 export { ImageTypeIcon, InfographicTypeIcon } from "./picture-type-icons"

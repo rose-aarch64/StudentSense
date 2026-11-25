@@ -340,7 +340,7 @@ function MessageActions({
     >
       <ActionBarPrimitive.Root
         hideWhenRunning={hideWhenRunning}
-        className="flex items-center gap-2 opacity-0 transition-opacity duration-150 ease-out group-hover/message:opacity-100 focus-within:opacity-100 motion-reduce:transition-none"
+        className="flex items-center gap-2 opacity-0 transition-opacity duration-150 ease-out group-hover/message:opacity-100 focus-within:opacity-100 motion-reduce:transition-none touch:opacity-100"
       >
         {timestampRight ? null : timestamp}
         <Tooltip>

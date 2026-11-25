@@ -8,7 +8,7 @@ import {
   type KeyboardEvent,
 } from "react"
 
-import { getFileViewer } from "@/features/file-viewers/registry"
+import { canPreview } from "@/features/source-preview/can-preview"
 import { motionIsReduced } from "@/features/motion-preference/motion-preference"
 import { useStableCallback } from "@/hooks/use-stable-callback"
 import { intl } from "@/i18n/intl"
@@ -133,8 +133,8 @@ export const SourceTree = memo(function SourceTree({
       return
     }
     const { document } = row
-    if (getFileViewer(document.mime_type) !== null) {
-      documentActions.onPreview?.(document.id)
+    if (documentActions.onPreview && canPreview(document)) {
+      documentActions.onPreview(document.id)
     } else if (
       document.status === "ready" &&
       document.document_type === "FILE" &&

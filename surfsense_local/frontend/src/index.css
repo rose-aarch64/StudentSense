@@ -13,6 +13,9 @@
 @custom-variant dark (&:is(.dark *));
 /* Settings › General decides, not only the OS (`features/motion-preference`). */
 @custom-variant motion-reduce (&:is(.reduce-motion *));
+/* Where nothing can hover: Tailwind's `hover:` and `group-hover:` never apply
+   there, so a control revealed only on hover needs this to show at all. */
+@custom-variant touch (@media (hover: none));
 
 @theme inline {
   --font-heading: var(--font-sans);
@@ -186,9 +189,12 @@
   }
   html {
     @apply font-sans antialiased;
+    /* The interface runs 25% larger; rem-based sizes follow, px ones do not. */
+    font-size: 125%;
   }
   #root {
-    height: 100svh;
+    /* `--app-height` is the visible height on a phone, which a keyboard shrinks. */
+    height: var(--app-height, 100svh);
     /* Base UI's setup: the app's own z-indexes stay below every portaled popup,
        which then stack by the order they opened. */
     isolation: isolate;
