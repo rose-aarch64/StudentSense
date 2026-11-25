@@ -5,7 +5,7 @@ import json
 import logging
 from collections.abc import AsyncIterator, Callable, Sequence
 from contextlib import AbstractAsyncContextManager, AsyncExitStack
-from dataclasses import asdict
+from dataclasses import asdict, replace
 from datetime import UTC, datetime
 
 import anyio
@@ -76,6 +76,8 @@ from modules.llm.resolution import (
     resolve_generation,
 )
 from modules.llm.subscriptions.plan_usage_frame import plan_usage_frame
+from modules.persona.apply import with_persona
+from modules.persona.store import persona_text
 from modules.source_scope.resolve import resolve_scope
 from modules.source_scope.schemas import SourceScope
 from modules.source_scope.thread_scope import store_thread_scope, thread_scope
@@ -287,6 +289,9 @@ async def send_message(
         not history and (thread.title or "").casefold() == "new chat"
     )
     grounding = build_context(hits, resolved.tier, indexing)
+    grounding = replace(
+        grounding, instruction=with_persona(grounding.instruction, persona_text())
+    )
     citations = grounding.citations
     logger.info(
         "chat: model %s/%s answering on the %s prompt (%s excerpts)",

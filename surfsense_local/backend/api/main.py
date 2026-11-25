@@ -28,6 +28,9 @@ from modules.artifacts.image_edits.router import router as image_edit_router
 from modules.artifacts.podcast.router import router as podcast_router
 from modules.artifacts.router import router as artifacts_router
 from modules.artifacts.studio_documents.router import router as refine_router
+from modules.canvas.refresh.schedule import refreshing_periodically
+from modules.canvas.router import router as canvas_router
+from modules.canvas.runlog.log import RunLog
 from modules.chat.interrupted_turns import settle_interrupted_turns
 from modules.chat.router import router as chat_router
 from modules.chat.runs.registry import ChatRuns
@@ -79,6 +82,7 @@ from modules.llm.transcription.internal_router import (
 from modules.llm.transcription.server import unload_speech_model
 from modules.llm.transcription.sessions import DictationSessions
 from modules.migration.router import router as migration_router
+from modules.persona.router import router as persona_router
 from modules.plugins.license_verdict.routes import router as plugin_license_router
 from modules.plugins.lists.registry.routes import router as plugin_registry_router
 from modules.plugins.remote.sign_in.oauth.routes import router as plugin_oauth_router
@@ -86,9 +90,13 @@ from modules.plugins.routes import router as plugins_router
 from modules.resource_usage.router import router as resource_usage_router
 from modules.runtime_packs.office.router import router as office_pack_router
 from modules.source_scope.router import router as source_scope_router
+from modules.today.router import router as today_router
+from modules.todos.board.router import router as todos_board_router
+from modules.todos.router import router as todos_router
 from modules.usage_statistics.activity_counts import begin_counting
 from modules.usage_statistics.kept import usage_statistics_kept
 from modules.usage_statistics.router import router as usage_statistics_router
+from modules.workspaces.folders.router import router as workspace_folders_router
 from modules.workspaces.router import router as workspaces_router
 from modules.workspaces.seed import ensure_default_workspace
 from shared.config import get_agent_settings, get_llm_settings, get_storage_settings
@@ -168,6 +176,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             _opencode_proxy(session_factory),
             serving_claude_proxy(session_factory, get_settings().host),
             licensing_loops(session_factory),
+            # Not a licence loop: it reads the user's own school, and only once
+            # the user has switched it on.
+            refreshing_periodically(session_factory),
         ):
             yield
     finally:
@@ -263,6 +274,8 @@ def create_app() -> FastAPI:
     add_cors(app, get_settings())
     app.state.broker = EventBroker()  # No benefits from lifespan hooks.
     app.state.chat_runs = ChatRuns()
+    # The last Canvas run's log; in memory, so it starts empty with the process.
+    app.state.canvas_log = RunLog()
     app.state.local_admission = LocalAdmission()
     app.state.dictations = DictationSessions()
     app.state.transcription_gate = TranscriptionGate(
@@ -272,6 +285,12 @@ def create_app() -> FastAPI:
     app.state.agent_launch_key = mint_launch_key()
     app.include_router(health_router)
     app.include_router(workspaces_router)
+    app.include_router(workspace_folders_router)
+    app.include_router(todos_router)
+    app.include_router(todos_board_router)
+    app.include_router(persona_router)
+    app.include_router(today_router)
+    app.include_router(canvas_router)
     app.include_router(documents_router)
     app.include_router(web_sources_router)
     app.include_router(search_server_router)

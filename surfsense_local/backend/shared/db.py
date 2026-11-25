@@ -67,6 +67,7 @@ def import_models() -> None:
     """
     import modules.agent.engines.claude_code.models
     import modules.artifacts.models
+    import modules.canvas.models
     import modules.chat.models
     import modules.chunks.models
     import modules.documents.models
@@ -80,6 +81,7 @@ def import_models() -> None:
     import modules.plugins.bundles.models
     import modules.plugins.installed.models
     import modules.source_roots.models
+    import modules.todos.models
     import modules.workspaces.models
 
 

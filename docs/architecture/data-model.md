@@ -47,8 +47,20 @@ The conventions every table follows are in [`shared/db.py`](../../surfsense_loca
 | `id`, `name`, `created_at`, `updated_at` | a name is 1 to 200 characters after trimming |
 | `cloud_id` | nullable, unique: the hosted workspace an import came from, so re-importing the same bundle reuses the row ([`import.md`](import.md)) |
 | `has_unkeyed_imported_threads` | true only when a message signature identifies chat history imported before hosted thread ids were retained; re-import claims a uniquely matching legacy thread and otherwise leaves that history untouched |
+| `icon` | from `0040`, nullable: a slug the interface maps to a picture, shown as initials when null or unknown |
+| `folder_id` | from `0040`, nullable foreign key to `workspace_folders`, `ON DELETE SET NULL` |
 
 The API seeds one workspace, "My Workspace", at startup when none exists. Deleting a workspace first stops its plugin runs ([`stop_workspace_runs.py`](../../surfsense_local/backend/modules/plugins/bundles/stop_workspace_runs.py)), then cascades its documents, threads, artifacts and runs.
+
+### `workspace_folders`
+
+From `0040`. A named group of workspaces, one level deep ([`workspace-folders.md`](workspace-folders.md)). Not the `folders` table, which holds a workspace's source folders.
+
+| Column | Notes |
+|---|---|
+| `id`, `name`, `created_at`, `updated_at` | a name is 1 to 200 characters after trimming; names are not unique |
+
+Deleting a row sets `workspaces.folder_id` to null on its workspaces and deletes none.
 
 ### `documents`
 
@@ -187,6 +199,47 @@ From `0033`. A firm's choices for one job, kept for every run of it ([`jobs.md`]
 | `settings` | JSON: the settings the job's pack declares, by key, each true or false; one a newer pack no longer declares is left out when they are read |
 | `checker` | JSON, nullable: the text model that makes the second checks, by provider, name and `connection_id`, which deleting the connection sets to null; null checks on the answering model |
 | `updated_at` | |
+
+### `todos`
+
+From `0037`. A task with a due date and a done time ([`todos.md`](todos.md)).
+
+| Column | Notes |
+|---|---|
+| `id`, `created_at`, `updated_at` | |
+| `workspace_id` | foreign key to `workspaces`, cascading, nullable: a task about no class has none; indexed by `todos_workspace` |
+| `title` | 1 to 500 characters after trimming |
+| `due_at`, `done_at` | nullable, UTC: `done_at` set means done |
+| `source` | `manual` or `canvas`, defaulting to `manual` |
+| `source_key` | nullable: how a source finds its task again, such as `assignment:31`. Unique with `source`, so manual tasks, which have none, may repeat |
+
+### `canvas_connection`
+
+From `0038`. One row, as `web_search_settings` is: the school's Canvas and the token that reads it ([`canvas.md`](canvas.md#the-connection)).
+
+| Column | Notes |
+|---|---|
+| `id` | primary key, always 1 |
+| `base_url` | the school's origin, such as `https://school.instructure.com` |
+| `token_ciphertext` | the access token, encrypted with the install's secret as a provider's key is |
+| `user_name` | nullable: who Canvas says the token belongs to |
+| `auto_refresh` | from `0041`, boolean, off by default: whether the background to-do refresh may use the token ([`canvas.md`](canvas.md#keeping-the-to-do-list-current)) |
+| `refreshed_at` | from `0041`, nullable: when the last refresh pass succeeded |
+| `refresh_error` | from `0041`, nullable: the code of how the last pass failed, cleared by a success or by connecting again |
+| `created_at`, `updated_at` | |
+
+### `canvas_links`
+
+From `0039`. Which local row each Canvas item became, so a sync finds it by id ([`canvas.md`](canvas.md#what-is-made-and-found-again)).
+
+| Column | Notes |
+|---|---|
+| `id`, `created_at` | |
+| `kind` | plain text, not an enum, so a new kind needs no table rebuild: `course`, `module`, `page`, `file`, `assignment` and the kinds listed in `canvas.md` |
+| `canvas_id` | the item's id in Canvas |
+| `local_id` | the id of the workspace, workspace folder, folder, document or task it became. No foreign key: a link to something the user deleted is stale, and the sync makes it again |
+
+`(kind, canvas_id)` is unique.
 
 ## On-disk layout
 
@@ -414,6 +467,11 @@ erDiagram
 | `0030` | `0030_speech_to_text_slot.py` | `selected_models` rebuilt so `speech_to_text` is a type and `audiocpp` may hold it beside `audio_gen`, carrying every column, `0019`'s `settings` included, which `0018`'s rebuild predates; downgrading drops a `speech_to_text` selection |
 | `0033` | `0033_job_settings.py` | `job_settings`, one row per job: the firm's settings and the checker model; downgrading drops it |
 | `0035` | `0035_elevenlabs_connection.py` | `provider_connections.auth_kind` accepts `elevenlabs`; the table rebuilt, as `0031` did; downgrading deletes those connections |
+| `0037` | `0037_todos.py` | `todos`, with `todos_workspace` and a unique `(source, source_key)`; downgrading drops it |
+| `0038` | `0038_canvas_connection.py` | `canvas_connection`, one row with the encrypted token; downgrading drops it |
+| `0039` | `0039_canvas_links.py` | `canvas_links`, unique on `(kind, canvas_id)`; downgrading drops it |
+| `0040` | `0040_workspace_folders.py` | `workspace_folders`; `workspaces.icon` and `workspaces.folder_id`, added in place because a batch rebuild of `workspaces` cascade-deleted its chats; downgrading drops them in place and keeps every workspace |
+| `0041` | `0041_canvas_auto_refresh.py` | `canvas_connection.auto_refresh`, `refreshed_at` and `refresh_error`, added with `ALTER TABLE ADD COLUMN` and dropped in place; downgrading keeps the connection |
 
 - Before the API applies a pending revision to an existing database, `upgrade_to_head` writes a `VACUUM INTO` copy to `<data>/backups/<from>-<to>.db` (via `.partial`, renamed once complete) and keeps the newest two ([`migration_snapshot.py`](../../surfsense_local/backend/shared/migration_snapshot.py)). A new database or one at head writes none. If the copy fails, nothing migrates and the API start fails with the reason. To restore: quit SurfSense, replace `surfsense.db` with the snapshot, and start the app.
 - Migrations run on every API start and are idempotent. Autogenerate is off: it renders a rename as a drop plus an add, which deletes a column's data silently, and `env.py` carries no `target_metadata`, so it cannot be used by accident.

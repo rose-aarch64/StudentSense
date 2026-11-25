@@ -25,9 +25,20 @@ def _drift_from_models(engine: Engine) -> list:
             type_ == "table" and name is not None and name.startswith(SEARCH_INDEX)
         )
 
+    def is_comparable(object_: object, _name: str | None, type_: str, *_: object):
+        # SQLAlchemy reads a SQLite foreign key's name and ON DELETE only from a
+        # table-level constraint. `workspaces.folder_id` is added in place, so it
+        # reflects bare and would always differ; the rule is checked below.
+        return not (
+            type_ == "foreign_key_constraint"
+            and object_.parent.name == "workspaces"
+            and [column.name for column in object_.columns] == ["folder_id"]
+        )
+
     with engine.connect() as connection:
         context = MigrationContext.configure(
-            connection, opts={"include_name": is_mapped}
+            connection,
+            opts={"include_name": is_mapped, "include_object": is_comparable},
         )
         return compare_metadata(context, Base.metadata)
 
@@ -35,6 +46,21 @@ def _drift_from_models(engine: Engine) -> list:
 def test_migrations_match_the_models(engine: Engine) -> None:
     """Guards the release bug where a model changes and no migration follows."""
     assert _drift_from_models(engine) == []
+
+
+def test_a_deleted_workspace_folder_unfiles_its_workspaces_in_the_schema(
+    engine: Engine,
+) -> None:
+    """The one foreign key the drift check cannot see, read from SQLite itself."""
+    with engine.connect() as connection:
+        rule = connection.execute(
+            text(
+                "SELECT on_delete FROM pragma_foreign_key_list('workspaces') "
+                "WHERE \"from\" = 'folder_id' AND \"table\" = 'workspace_folders'"
+            )
+        ).scalar_one()
+
+    assert rule == "SET NULL"
 
 
 def test_migrations_are_idempotent(engine: Engine) -> None:

@@ -12,7 +12,7 @@ A workspace holds a library of sources: uploaded files, notes written in the app
 | `POST` | `/workspaces` | create; `201` |
 | `GET` | `/workspaces` | list, oldest first |
 | `GET` | `/workspaces/{workspace_id}` | read one |
-| `PATCH` | `/workspaces/{workspace_id}` | rename |
+| `PATCH` | `/workspaces/{workspace_id}` | rename, or set its `icon` and `folder_id` ([workspace folders](workspace-folders.md)) |
 | `DELETE` | `/workspaces/{workspace_id}` | delete it and everything in it; `204` |
 
 - The API seeds "My Workspace" at startup when no workspace exists ([`seed.py`](../../surfsense_local/backend/modules/workspaces/seed.py)), so a first launch always has one to open into.

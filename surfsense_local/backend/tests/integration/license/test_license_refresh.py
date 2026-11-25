@@ -221,6 +221,9 @@ def signed_elsewhere(certificate: str) -> str:
         (signed_elsewhere(RENEWED), "bad_signature"),
         (business_license(issued="2026-09-12T12:00:00.000Z"), "clock_untrusted"),
     ],
+    # Fixed ids: a file signed with a fresh random key names a different test in
+    # each process, which parallel workers (`pytest -n`) cannot collect.
+    ids=["not_a_license_file", "bad_signature", "clock_untrusted"],
 )
 async def test_a_file_the_import_refuses_keeps_its_reason(
     client: AsyncClient, license_server: StandInLicenseServer, file: str, code: str

@@ -14,6 +14,8 @@ from typing import Any
 
 from modules.jobs.packs.skills import JobSkill
 from modules.llm.catalog.remote.manifest.lookup import CallRoute
+from modules.persona.apply import with_persona
+from modules.persona.store import persona_text
 
 PROVIDER = "surfsense"
 AGENT = "surfsense"
@@ -240,13 +242,18 @@ def declares_image_input(path: Path) -> bool:
 
 
 def agent_prompt() -> str:
-    """SurfSense's instructions to the agent, in place of opencode's coding prompt."""
-    return (
+    """SurfSense's instructions to the agent, in place of opencode's coding prompt.
+
+    The user's persona follows them. Each turn rewrites the configuration from
+    this, so an edit reaches opencode, and Claude Code, on the next turn.
+    """
+    base = (
         files("modules.agent")
         .joinpath("prompts", "agent.md")
         .read_text(encoding="utf-8")
         .strip()
     )
+    return with_persona(base, persona_text())
 
 
 def write_opencode_config(path: Path, setup: AgentSetup) -> bool:
