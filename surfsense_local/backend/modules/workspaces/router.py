@@ -1,7 +1,7 @@
 import shutil
 from collections.abc import Sequence
 
-from fastapi import APIRouter, Response, status
+from fastapi import APIRouter, HTTPException, Response, status
 from sqlalchemy import select
 
 from api.dependencies import SessionDep
@@ -11,7 +11,7 @@ from modules.chat.stop_workspace_replies import stop_workspace_replies
 from modules.plugins.bundles.stop_workspace_runs import stop_workspace_runs
 from modules.source_roots.managed_root import ensure_managed_root
 from modules.workspaces.dependencies import WorkspaceDep
-from modules.workspaces.models import Workspace
+from modules.workspaces.models import Workspace, WorkspaceFolder
 from modules.workspaces.schemas import WorkspaceCreate, WorkspaceRead, WorkspaceUpdate
 from shared.config import get_storage_settings
 
@@ -55,10 +55,24 @@ def read_workspace(workspace: WorkspaceDep) -> Workspace:
 @router.patch(
     "/{workspace_id}",
     response_model=WorkspaceRead,
-    summary="Rename a workspace",
+    summary="Rename a workspace, or change its icon or folder",
 )
-def update_workspace(workspace: WorkspaceDep, payload: WorkspaceUpdate) -> Workspace:
-    workspace.name = payload.name
+def update_workspace(
+    workspace: WorkspaceDep, payload: WorkspaceUpdate, session: SessionDep
+) -> Workspace:
+    changed = payload.model_fields_set
+    if (
+        "folder_id" in changed
+        and payload.folder_id is not None
+        and session.get(WorkspaceFolder, payload.folder_id) is None
+    ):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "folder not found")
+    if "name" in changed:
+        workspace.name = payload.name
+    if "icon" in changed:
+        workspace.icon = payload.icon
+    if "folder_id" in changed:
+        workspace.folder_id = payload.folder_id
     return workspace
 
 

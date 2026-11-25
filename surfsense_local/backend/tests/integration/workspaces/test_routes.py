@@ -85,6 +85,74 @@ async def test_a_workspace_can_be_renamed(client: AsyncClient) -> None:
     assert (await client.get("/workspaces")).json()[0]["name"] == "Research"
 
 
+async def test_a_workspace_takes_an_icon_key_and_clears_it(client: AsyncClient) -> None:
+    """The icon is a key into the interface's set; null goes back to initials."""
+    workspace_id = (await client.post("/workspaces", json={"name": "Bio"})).json()["id"]
+
+    set_icon = await client.patch(
+        f"/workspaces/{workspace_id}", json={"icon": "camera"}
+    )
+    cleared = await client.patch(f"/workspaces/{workspace_id}", json={"icon": None})
+
+    assert set_icon.json()["icon"] == "camera"
+    assert (await client.get("/workspaces")).json()[0]["icon"] is None
+    assert cleared.json()["icon"] is None
+
+
+@pytest.mark.parametrize("key", ["Camera", "x" * 33, "two words", ""])
+async def test_an_icon_key_must_be_a_short_lowercase_slug(
+    client: AsyncClient, key: str
+) -> None:
+    """The key is stored and later looked up, so it stays a plain slug."""
+    workspace_id = (await client.post("/workspaces", json={"name": "Bio"})).json()["id"]
+
+    response = await client.patch(f"/workspaces/{workspace_id}", json={"icon": key})
+
+    assert response.status_code == 422
+
+
+async def test_a_workspace_is_filed_and_unfiled_by_folder_id(
+    client: AsyncClient,
+) -> None:
+    """Null unfiles; an id files; an id that is not a folder is not found."""
+    workspace_id = (await client.post("/workspaces", json={"name": "Bio"})).json()["id"]
+    folder_id = (
+        await client.post("/workspace-folders", json={"name": "2026/FA"})
+    ).json()["id"]
+
+    filed = await client.patch(
+        f"/workspaces/{workspace_id}", json={"folder_id": folder_id}
+    )
+    unfiled = await client.patch(
+        f"/workspaces/{workspace_id}", json={"folder_id": None}
+    )
+    missing = await client.patch(f"/workspaces/{workspace_id}", json={"folder_id": 999})
+
+    assert filed.json()["folder_id"] == folder_id
+    assert unfiled.json()["folder_id"] is None
+    assert missing.status_code == 404
+
+
+async def test_a_patch_changes_only_what_it_names(client: AsyncClient) -> None:
+    """Renaming must not clear the icon or the folder; an empty patch is refused."""
+    workspace_id = (await client.post("/workspaces", json={"name": "Bio"})).json()["id"]
+    folder_id = (
+        await client.post("/workspace-folders", json={"name": "2026/FA"})
+    ).json()["id"]
+    await client.patch(
+        f"/workspaces/{workspace_id}", json={"icon": "atom", "folder_id": folder_id}
+    )
+
+    renamed = await client.patch(f"/workspaces/{workspace_id}", json={"name": "Chem"})
+    empty = await client.patch(f"/workspaces/{workspace_id}", json={})
+    nulled = await client.patch(f"/workspaces/{workspace_id}", json={"name": None})
+
+    assert renamed.json()["icon"] == "atom"
+    assert renamed.json()["folder_id"] == folder_id
+    assert empty.status_code == 422
+    assert nulled.status_code == 422
+
+
 async def test_a_rename_is_validated_like_a_create(client: AsyncClient) -> None:
     """Renaming is the other way to end up with a blank row in the switcher."""
     created = await client.post("/workspaces", json={"name": "Research"})

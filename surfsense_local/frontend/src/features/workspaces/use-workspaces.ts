@@ -4,10 +4,17 @@ import { intl } from "@/i18n/intl"
 
 import {
   createWorkspace,
+  createWorkspaceFolder,
   deleteWorkspace,
+  deleteWorkspaceFolder,
+  listWorkspaceFolders,
   listWorkspaces,
   renameWorkspace,
+  renameWorkspaceFolder,
+  updateWorkspace,
   type Workspace,
+  type WorkspaceChange,
+  type WorkspaceFolder,
 } from "./api"
 import { readStoredWorkspaceId, rememberWorkspace } from "./last-workspace"
 
@@ -29,8 +36,12 @@ function messageFrom(error: unknown) {
       })
 }
 
-export function useWorkspaces(initialWorkspaces: Workspace[]) {
+export function useWorkspaces(
+  initialWorkspaces: Workspace[],
+  initialFolders: WorkspaceFolder[] = []
+) {
   const [workspaces, setWorkspaces] = useState(initialWorkspaces)
+  const [folders, setFolders] = useState(initialFolders)
   const [activeId, setActiveId] = useState(() =>
     readLastWorkspaceId(initialWorkspaces)
   )
@@ -112,10 +123,87 @@ export function useWorkspaces(initialWorkspaces: Workspace[]) {
     }
   }
 
+  // Runs one change, keeping its error and busy state like the rest; false on failure.
+  const attempt = async <T>(
+    run: () => Promise<T>,
+    apply: (result: T) => void
+  ) => {
+    setIsMutating(true)
+    setError(null)
+    try {
+      apply(await run())
+      return true
+    } catch (cause) {
+      setError(messageFrom(cause))
+      return false
+    } finally {
+      setIsMutating(false)
+    }
+  }
+
+  const change = (id: number, fields: WorkspaceChange) =>
+    attempt(
+      () => updateWorkspace(id, fields),
+      (workspace) =>
+        setWorkspaces((current) =>
+          current.map((candidate) =>
+            candidate.id === workspace.id ? workspace : candidate
+          )
+        )
+    )
+
+  const setIcon = (id: number, icon: string | null) => change(id, { icon })
+
+  const moveToFolder = (id: number, folderId: number | null) =>
+    change(id, { folder_id: folderId })
+
+  const createFolder = async (name: string) => {
+    let created: WorkspaceFolder | null = null
+    await attempt(
+      () => createWorkspaceFolder(name),
+      (folder) => {
+        created = folder
+        setFolders((current) => [...current, folder])
+      }
+    )
+    return created
+  }
+
+  const renameFolder = (id: number, name: string) =>
+    attempt(
+      () => renameWorkspaceFolder(id, name),
+      (folder) =>
+        setFolders((current) =>
+          current.map((candidate) =>
+            candidate.id === folder.id ? folder : candidate
+          )
+        )
+    )
+
+  // The server unfiles the folder's workspaces; the list follows without a reload.
+  const removeFolder = (id: number) =>
+    attempt(
+      () => deleteWorkspaceFolder(id),
+      () => {
+        setFolders((current) => current.filter((folder) => folder.id !== id))
+        setWorkspaces((current) =>
+          current.map((workspace) =>
+            workspace.folder_id === id
+              ? { ...workspace, folder_id: null }
+              : workspace
+          )
+        )
+      }
+    )
+
   // After a change made outside this hook (an import); lands on `focusId`.
   const reload = async (focusId: number) => {
-    const next = await listWorkspaces()
+    const [next, nextFolders] = await Promise.all([
+      listWorkspaces(),
+      listWorkspaceFolders().catch(() => null),
+    ])
     setWorkspaces(next)
+    if (nextFolders !== null) setFolders(nextFolders)
     if (next.some((workspace) => workspace.id === focusId)) {
       rememberWorkspace(focusId)
       setActiveId(focusId)
@@ -124,6 +212,7 @@ export function useWorkspaces(initialWorkspaces: Workspace[]) {
 
   return {
     workspaces,
+    folders,
     activeWorkspace,
     error,
     isMutating,
@@ -131,6 +220,11 @@ export function useWorkspaces(initialWorkspaces: Workspace[]) {
     create,
     rename,
     remove,
+    setIcon,
+    moveToFolder,
+    createFolder,
+    renameFolder,
+    removeFolder,
     reload,
     clearError: () => setError(null),
   }
