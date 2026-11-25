@@ -67,7 +67,7 @@ function get(
     headers = {},
     json,
   }: { method?: string; host?: string; headers?: Record<string, string>; json?: unknown } = {}
-): Promise<{ status: number; type: string; body: string; cookie: string; setCookie: string; location: string }> {
+): Promise<{ status: number; type: string; cacheControl: string; body: string; cookie: string; setCookie: string; location: string }> {
   const payload = json === undefined ? undefined : JSON.stringify(json)
   const sent = {
     ...(host ? { host } : {}),
@@ -84,6 +84,7 @@ function get(
         resolve({
           status: res.statusCode ?? 0,
           type: res.headers["content-type"] ?? "",
+          cacheControl: String(res.headers["cache-control"] ?? ""),
           body,
           cookie: setCookie.split(";")[0],
           setCookie,
@@ -126,6 +127,28 @@ describe("the image", { skip: IMAGE ? false : "SURFSENSE_TEST_IMAGE names no ima
     const script = await get(new URL(src, "http://localhost/").pathname)
     assert.equal(script.status, 200)
     assert.match(script.type, /javascript/)
+  })
+
+  // A new build must reach the browser without a hard reload: the page that names
+  // the build is checked on every load, and a build's own hashed files are kept.
+  test("has the browser check the page on every load, at any path the app routes", async () => {
+    assert.equal((await get("/")).cacheControl, "no-cache")
+    assert.equal((await get("/settings/canvas")).cacheControl, "no-cache")
+  })
+
+  test("lets the browser keep a built script for good", async () => {
+    const src = (await get("/")).body.match(/<script[^>]+src="([^"]+)"/)?.[1]
+    assert.ok(src, "the page names no script")
+    const script = await get(new URL(src, "http://localhost/").pathname)
+    assert.equal(script.cacheControl, "public, max-age=31536000, immutable")
+  })
+
+  // An old page may ask for a script a newer build no longer has; the app's page
+  // answers instead, and must not be kept under that script's name.
+  test("never keeps the fallback page for a missing script as if it were that script", async () => {
+    const missing = await get("/assets/main-gone.js")
+    assert.match(missing.type, /html/)
+    assert.equal(missing.cacheControl, "no-cache")
   })
 
   test("asks to be set up before it opens its API, on any address", async () => {
