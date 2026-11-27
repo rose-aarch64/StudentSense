@@ -1,6 +1,7 @@
 import type { ComponentType } from "react"
 
 import { PdfViewer } from "./pdf-viewer"
+import { PptxViewer } from "./pptx-viewer"
 
 export type FileViewerProps = {
   url: string
@@ -12,6 +13,8 @@ export type FileViewerProps = {
 
 const FILE_VIEWERS: Record<string, ComponentType<FileViewerProps>> = {
   "application/pdf": PdfViewer,
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation":
+    PptxViewer,
 }
 
 export function getFileViewer(

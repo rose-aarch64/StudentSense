@@ -9,6 +9,14 @@ describe("source file viewers", () => {
     expect(getFileViewer(null)).toBeNull()
   })
 
+  it("provides a slide viewer for PowerPoint files", () => {
+    expect(
+      getFileViewer(
+        "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+      )
+    ).not.toBeNull()
+  })
+
   it("previews no recording until an audio viewer exists", () => {
     for (const mimeType of [
       "audio/wav",
