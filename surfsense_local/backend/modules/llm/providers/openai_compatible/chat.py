@@ -8,6 +8,7 @@ from modules.llm.connections.conversation_fields import conversation_fields
 from modules.llm.connections.conversation_headers import conversation_headers
 from modules.llm.connections.key_headers import key_headers
 from modules.llm.connections.model_list_url import model_list_url
+from modules.llm.connections.props_url import props_url
 from modules.llm.connections.service import parse_models
 from modules.llm.profile import Fingerprint, from_remote
 from modules.llm.providers.prompt_reuse import chunk_reuse, log_reuse
@@ -33,6 +34,10 @@ TIMEOUT = httpx.Timeout(FIRST_TOKEN_SECONDS, connect=5.0)
 # budget: a mistyped address should fail while the person is still looking at
 # the dialog.
 LISTING_TIMEOUT = httpx.Timeout(120.0, connect=5.0)
+
+# Asking for the window sits in front of every message, so a server that does
+# not answer quickly is treated as not telling.
+PROPS_TIMEOUT = httpx.Timeout(3.0, connect=2.0)
 MAX_ERROR_CHARS = 400
 
 
@@ -103,10 +108,27 @@ class OpenAICompatibleChatProvider:
         ]
 
     async def context_tokens(self, model: str) -> int | None:
-        """Unknown. The `/models` listing this class speaks does not carry a
-        window (that is llama.cpp's `/props`, not the OpenAI shape), so a
-        caller that budgets a prompt from this must fall back to a fixed
-        figure rather than assume this endpoint's real window is small."""
+        """The window a llama-server on this machine or network reports at
+        `/props`, or None for anything else.
+
+        The OpenAI `/models` listing this class speaks carries no window, so
+        any endpoint that does not answer `/props` cleanly stays unknown, and a
+        caller that budgets a prompt from this falls back to a fixed figure
+        rather than assume this endpoint's real window is small.
+        """
+        url = props_url(self._base_url)
+        if url is None:
+            return None
+        try:
+            async with self._client(PROPS_TIMEOUT) as client:
+                reply = await client.get(url)
+                reply.raise_for_status()
+                window = reply.json()["default_generation_settings"]["n_ctx"]
+        except (httpx.HTTPError, ValueError, KeyError, TypeError):
+            return None
+        # A bool is an int in Python and never a window.
+        if isinstance(window, int) and not isinstance(window, bool) and window > 0:
+            return window
         return None
 
     async def token_count(self, model: str, text: str) -> int | None:

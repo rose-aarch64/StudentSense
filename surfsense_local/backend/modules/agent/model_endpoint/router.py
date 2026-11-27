@@ -1,10 +1,12 @@
 from contextlib import AsyncExitStack
 from dataclasses import replace
+from functools import partial
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Body, Depends, Header, HTTPException, Request, Response
 
 from api.dependencies import SessionDep, transact
+from modules.agent.context_use.last_prompt import note_prompt
 from modules.agent.launch_key import require_launch_key
 from modules.agent.model_endpoint.admission_messages import admission_messages
 from modules.agent.model_endpoint.console_refusal import refusal_for
@@ -89,6 +91,8 @@ async def complete_chat(
         body,
         done,
         refusal=refusal_for(address.url),
+        # How full the session's memory is, for the chat's gauge.
+        on_usage=None if affinity is None else partial(note_prompt, affinity),
     )
 
 

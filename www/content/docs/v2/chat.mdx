@@ -54,6 +54,8 @@ The picker then says why, and the chat stays Basic (Q&A). A local model's tools 
 Type in the composer and press Enter. Shift+Enter starts a new line.
 
 - The composer shows how many sources are ticked. Unticking every source leaves the model with nothing to cite.
+- In a Basic (Q&A) chat that has started, a percentage beside the source count shows how much of the chat's history is being sent to the model. At 100% the oldest messages stop being sent, and the figure drops to about 75%. Hover over it for the numbers. A model that does not report its context window is measured against a fixed history limit instead.
+- In an Agentic chat the same percentage shows how full the agent's memory is. At 100% its memory is full and the agent has to summarize the earlier work to go on. It appears once the agent has taken a step, and after you restart SurfSense it waits for the next one.
 - While the model reads a long prompt the reply shows "Reading 42%", then **Thinking** until the first words arrive.
 - **Stop** ends a reply early and keeps what was written.
 - A failed reply says why, with **Retry**, or **Model setup** when the fix is there.

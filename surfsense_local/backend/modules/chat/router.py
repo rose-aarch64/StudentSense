@@ -17,6 +17,7 @@ from sqlalchemy.orm import Session
 
 from api.dependencies import SessionDep, transact
 from modules.agent.agent_threads.turn import RunPlace
+from modules.agent.context_use.agent_usage import agent_usage
 from modules.agent.dependencies import LaunchKeyDep
 from modules.agent.engine_choice import (
     AgenticRefusedError,
@@ -32,9 +33,11 @@ from modules.chat.budget import (
     history_budget,
     image_room,
 )
+from modules.chat.context_usage import context_usage_frame
 from modules.chat.dependencies import ThreadDep
 from modules.chat.errors import classify_chat_error, empty_reply_error
 from modules.chat.history import TokenCounter, build_messages
+from modules.chat.history_usage import history_usage
 from modules.chat.images import store
 from modules.chat.images.intake import ImageRefusedError, NormalisedImage, normalise
 from modules.chat.images.sources import (
@@ -52,6 +55,7 @@ from modules.chat.runs.registry import STOP_SETTLE_SECONDS
 from modules.chat.runs.run import Run, RunState
 from modules.chat.runs.stream import event_stream
 from modules.chat.schemas import (
+    ContextUsageRead,
     ImageUpload,
     MessageCreate,
     MessageRead,
@@ -68,6 +72,7 @@ from modules.llm.admission.pool import Priority
 from modules.llm.admission.waiting import wait_in_line
 from modules.llm.capability.modes import ChatMode
 from modules.llm.providers import llamacpp
+from modules.llm.providers.openai_compatible.chat import OpenAICompatibleChatProvider
 from modules.llm.providers.protocols import Generator
 from modules.llm.providers.types import Message, PlanUsage
 from modules.llm.resolution import (
@@ -316,6 +321,12 @@ async def send_message(
         token_count=_token_counter(generator, selected.name),
         history_start_id=thread.history_start_message_id,
     )
+    counter = _token_counter(generator, selected.name)
+    # The trim pays for this turn's pictures out of history, so the gauge does too.
+    attached = len(images) + len(found)
+    usage_before = await _usage_frame(
+        history, prompt.history_start_id, n_ctx, counter, attached
+    )
 
     activity_key = model_key(selected.provider, selected.name, selected.connection_id)
     try:
@@ -437,13 +448,24 @@ async def send_message(
                     )
             try:
                 async with AsyncExitStack() as held:
-                    max_tokens = answer_max_tokens(n_ctx)
+                    # An endpoint that reported its window through /props was
+                    # uncapped before it did, and the server stops a reply at its
+                    # own window, so a thinking model is not cut short at the reserve.
+                    max_tokens = (
+                        None
+                        if selected.provider == OpenAICompatibleChatProvider.name
+                        else answer_max_tokens(n_ctx)
+                    )
                     if local:
                         async for place in wait_in_line(
                             held, turn(prompt.messages, max_tokens)
                         ):
                             run.set_state(RunState("queued", place))
                     run.set_state(RunState("running"))
+                    # After the title, so the frames a window already expects keep
+                    # their places; still before the first word of the reply.
+                    if usage_before is not None:
+                        yield usage_before
                     # Said once per reply, and again only if it changes.
                     plan_said: PlanUsage | None = None
                     async for delta in generator.chat_deltas(
@@ -561,6 +583,9 @@ async def send_message(
 
         if cited:
             yield _frame({"type": "citations", "items": cited})
+        usage_after = await _stored_usage_frame(session, thread, n_ctx, counter)
+        if usage_after is not None:
+            yield usage_after
         yield _frame(
             {
                 "type": "completed",
@@ -672,6 +697,71 @@ def _new_thread(
         store_thread_scope(session, thread, scope)
     session.refresh(thread)
     return thread
+
+
+async def _usage_frame(
+    history: Sequence[ChatMessage],
+    history_start_id: int | None,
+    n_ctx: int | None,
+    counter: TokenCounter | None,
+    attached_images: int = 0,
+) -> bytes | None:
+    """The `context-usage` frame, or None when it cannot be worked out.
+
+    A gauge that fails must never fail the reply it sits beside.
+    """
+    try:
+        used = await history_usage(
+            history,
+            history_start_id=history_start_id,
+            token_count=counter,
+            resend_picture=attached_images == 0,
+        )
+    except Exception:
+        logger.warning("Could not price the history for the gauge", exc_info=True)
+        return None
+    # An unknown window is trimmed at a fixed figure, which is where 100% sits.
+    budget = max(0, history_budget(n_ctx) - IMAGE_TOKENS * attached_images)
+    return _frame(context_usage_frame(used, budget))
+
+
+async def _stored_usage_frame(
+    session: Session,
+    thread: ChatThread,
+    n_ctx: int | None,
+    counter: TokenCounter | None,
+) -> bytes | None:
+    """The frame for the thread as stored once a reply ends, guarded like the
+    rest: reading the turns back can fail too."""
+    try:
+        stored = await transact(session, _stored_turns, thread)
+    except Exception:
+        logger.warning("Could not read the turns for the gauge", exc_info=True)
+        return None
+    return await _usage_frame(stored, thread.history_start_message_id, n_ctx, counter)
+
+
+@router.get(
+    "/chat/threads/{thread_id}/context-usage",
+    response_model=ContextUsageRead,
+    summary="How much of the history budget a thread has spent",
+)
+async def read_context_usage(
+    thread: ThreadDep, session: SessionDep
+) -> ContextUsageRead:
+    if thread.uses_agent:
+        used, budget = await agent_usage(session, thread)
+        return ContextUsageRead(used=used, budget=budget)
+    history = await transact(session, _stored_turns, thread)
+    used = await history_usage(
+        history, history_start_id=thread.history_start_message_id
+    )
+    try:
+        resolved = await transact(session, resolve_generation)
+    except ModelResolutionError:
+        return ContextUsageRead(used=used, budget=None)
+    n_ctx = await _context_tokens_or_none(resolved.generator, resolved.selection.name)
+    return ContextUsageRead(used=used, budget=history_budget(n_ctx))
 
 
 def _stored_turns(session: Session, thread: ChatThread) -> Sequence[ChatMessage]:

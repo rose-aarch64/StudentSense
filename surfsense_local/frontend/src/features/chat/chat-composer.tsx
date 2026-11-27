@@ -18,7 +18,9 @@ import { StartupDraftHandover } from "@/features/startup/startup-draft-handover"
 import { useStartupDraft } from "@/features/startup/use-startup-draft"
 import { useStartupReveal } from "@/features/startup/use-startup-reveal"
 
+import type { ContextUsage } from "./api"
 import { ComposerImage } from "./attached-image"
+import { ContextGauge } from "./context-usage/context-gauge"
 import { ComposerInput } from "./composer-input/composer-input"
 import { ComposerAddMenu } from "./composer-add-menu"
 import { messageLabel, startPlaceholder } from "./composer-wording"
@@ -184,7 +186,10 @@ export function ChatComposer({
   dictation,
   onOpenSpeechSettings,
   mentionables,
+  contextUsage,
 }: {
+  // How full the open chat's history is; absent for a new chat.
+  contextUsage?: ContextUsage | null
   placement: "center" | "bottom"
   model: ModelSelection | null
   sourceCount: number
@@ -362,7 +367,14 @@ export function ChatComposer({
               {recording ? (
                 strip("mb-1.5 max-w-56 shrink-0")
               ) : (
-                <SourceCount count={sourceCount} className="mb-2" />
+                <>
+                  <ContextGauge
+                    usage={contextUsage ?? null}
+                    agentic={agentic}
+                    className="mb-2"
+                  />
+                  <SourceCount count={sourceCount} className="mb-2" />
+                </>
               )}
               {mic("-mr-1 mb-0.5")}
               <ComposerAction

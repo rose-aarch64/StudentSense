@@ -129,6 +129,18 @@ export function listMessages(
   })
 }
 
+/** How much of the history budget a thread has spent; no budget, no gauge. */
+export type ContextUsage = { used: number; budget: number | null }
+
+export function getContextUsage(
+  threadId: number,
+  signal?: AbortSignal
+): Promise<ContextUsage> {
+  return requestJson<ContextUsage>(`/chat/threads/${threadId}/context-usage`, {
+    signal,
+  })
+}
+
 export function deleteThread(
   threadId: number,
   signal?: AbortSignal

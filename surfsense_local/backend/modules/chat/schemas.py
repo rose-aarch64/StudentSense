@@ -83,6 +83,18 @@ class ThreadRead(BaseModel):
         return ticks_of(stored) if isinstance(stored, dict) else stored
 
 
+class ContextUsageRead(BaseModel):
+    """How much of the history budget a thread has spent.
+
+    `budget` is None where there is none to measure against: an agent thread,
+    or no model selected. An unknown window is trimmed at a fixed history
+    budget, which is what it measures against.
+    """
+
+    used: int
+    budget: int | None
+
+
 class MessageCreate(BaseModel):
     """The user's turn; the assistant's is streamed, not posted.
 

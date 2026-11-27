@@ -18,6 +18,7 @@ from fastapi.responses import StreamingResponse
 
 from modules.agent.model_endpoint.error_replies import as_error_body, error_reply
 from modules.agent.model_endpoint.model_address import ModelAddress
+from modules.agent.model_endpoint.stream_usage import prompt_tokens_of
 from modules.llm.providers.openai_responses.stream_endings import ENDINGS
 from modules.llm.providers.sse_lines import Lines, whole_lines
 
@@ -89,8 +90,11 @@ async def relay(
     wire: Wire = CHAT_COMPLETIONS,
     reauthorize: Reauthorize | None = None,
     refusal: Refusal = _passed_on,
+    on_usage: Callable[[int], None] | None = None,
 ) -> Response:
-    """Send `body` to the model and answer with its reply; `done` runs once it is over."""
+    """Send `body` to the model and answer with its reply; `done` runs once it is over.
+
+    `on_usage` is told the prompt size of a stream that reports one."""
     client = httpx.AsyncClient(timeout=TIMEOUT)
     try:
         reply = await _send(client, address.url, body, address.headers)
@@ -118,7 +122,7 @@ async def relay(
         )
 
     return StreamingResponse(
-        _frames(client, reply, done, wire),
+        _frames(client, reply, done, wire, on_usage),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
@@ -137,6 +141,7 @@ async def _frames(
     reply: httpx.Response,
     done: Callable[[], Awaitable[None]],
     wire: Wire,
+    on_usage: Callable[[int], None] | None = None,
 ) -> AsyncIterator[bytes]:
     """The model's stream as it sent it, a whole line at a time, always ended as
     the route's provider expects."""
@@ -147,10 +152,14 @@ async def _frames(
             # Only the last piece can lack a line feed; its line is ended too.
             if not piece.endswith(b"\n"):
                 piece += b"\n"
-            # Read only to see the end coming: opencode gets the bytes as sent.
-            ended = ended or any(
-                map(wire.ends, lines.feed(piece.decode(errors="replace")))
-            )
+            # Read only to see the end coming, and the prompt size a model
+            # reports: opencode gets the bytes as sent.
+            fed = list(lines.feed(piece.decode(errors="replace")))
+            ended = ended or any(map(wire.ends, fed))
+            if on_usage is not None:
+                for text in fed:
+                    if (tokens := prompt_tokens_of(text)) is not None:
+                        on_usage(tokens)
             yield piece
     except httpx.HTTPError as failure:
         broke = _sse(wire.failure(f"the model stopped answering: {_reason(failure)}"))

@@ -24,7 +24,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { TypewriterText } from "@/components/typewriter-text"
 import type { Dictation } from "@/features/dictation/dictation-adapter"
-import type { ModelSelection } from "@/features/models/selection/api"
+import { modelKey, type ModelSelection } from "@/features/models/selection/api"
 import { useStableCallback } from "@/hooks/use-stable-callback"
 import { intl } from "@/i18n/intl"
 import type { PluginsStart } from "@/features/plugins/plugins-settings"
@@ -34,6 +34,7 @@ import { ChatComposer } from "./chat-composer"
 import type { Mentionables } from "./mentions/mention-items"
 import { ChatViewport } from "./chat-viewport"
 import { ConversationColumn } from "./conversation-column"
+import { useContextUsage } from "./context-usage/use-context-usage"
 import { ConversationBody } from "./conversation-scroll"
 import { composerAttachmentOf } from "./image-attachments"
 import { LiveThreadRuntime, type LiveThreadSource } from "./live-thread-runtime"
@@ -214,6 +215,10 @@ export function ThreadPanel({
   mentionables?: Mentionables
 }) {
   const reveal = useStartupReveal()
+  const contextUsage = useContextUsage(
+    view.status === "active" ? view.threadId : null,
+    model === null ? null : modelKey(model)
+  )
   const titleInputRef = useRef<HTMLInputElement>(null)
   const headingId = useId()
   const ignoreMenuFocusRef = useRef(false)
@@ -254,6 +259,7 @@ export function ThreadPanel({
       dictation={dictation}
       onOpenSpeechSettings={onOpenSpeechSettings}
       mentionables={mentionables}
+      contextUsage={contextUsage}
     />
   )
   const bottomFooter = bottomComposer ? composer("bottom") : undefined

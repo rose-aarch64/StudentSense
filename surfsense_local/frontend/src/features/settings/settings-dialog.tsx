@@ -44,6 +44,7 @@ import {
   type PluginsStart,
 } from "@/features/plugins/plugins-settings"
 import { CanvasSettings } from "@/features/canvas/canvas-settings"
+import { AgentPersonaSettings } from "@/features/persona/agent-persona-settings"
 import { PersonaSettings } from "@/features/persona/persona-settings"
 import { LicenseSettings } from "@/features/license/license-settings"
 import { useLicensing } from "@/features/license/use-license"
@@ -526,7 +527,12 @@ export function SettingsDialog({
               />
             ) : null}
             {activeSection.id === "canvas" ? <CanvasSettings /> : null}
-            {activeSection.id === "persona" ? <PersonaSettings /> : null}
+            {activeSection.id === "persona" ? (
+              <>
+                <PersonaSettings />
+                <AgentPersonaSettings />
+              </>
+            ) : null}
             {activeSection.id === "license" ? <LicenseSettings /> : null}
             {activeSection.id === "about" ? <AboutSettings /> : null}
             {activeSection.id === "access" ? <AccessSettings /> : null}

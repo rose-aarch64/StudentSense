@@ -7,6 +7,7 @@ import socket
 import pytest
 from sqlalchemy.orm import Session, sessionmaker
 
+from modules.agent.context_use.last_prompt import last_prompt
 from modules.agent.model_endpoint import router as model_router
 from modules.llm.admission.pool import Priority
 from modules.llm.model_type import ModelType
@@ -233,6 +234,69 @@ async def test_a_stream_the_model_ends_without_done_still_ends(
     _, text = await endpoint.chat(request())
 
     assert text.rstrip().endswith("data: [DONE]")
+
+
+USAGE_FRAMES = [
+    json.dumps({"choices": [{"delta": {"content": "Hello"}}]}),
+    json.dumps({"choices": [{"delta": {}, "finish_reason": "stop"}]}),
+    json.dumps({"choices": [], "usage": {"prompt_tokens": 5120}}),
+    "[DONE]",
+]
+
+
+async def _chat_in_session(endpoint: Endpoint, session: str | None) -> str:
+    headers = {"Authorization": f"Bearer {endpoint.launch_key}"}
+    if session is not None:
+        headers["x-session-affinity"] = session
+    reply = await endpoint.client.post(ROUTE, json=request(), headers=headers)
+    assert reply.status_code == 200
+    return reply.text
+
+
+async def test_the_prompt_size_a_model_reports_is_kept_for_the_session(
+    endpoint: Endpoint, model_server: StubModel
+) -> None:
+    """How full the agent's memory is: the last step's whole prompt."""
+    select_local(endpoint.sessions)
+    model_server.frames = USAGE_FRAMES
+
+    await _chat_in_session(endpoint, "ses_gauge")
+
+    assert last_prompt("ses_gauge") == 5120
+
+
+async def test_the_model_is_not_asked_for_usage_and_opencode_gets_the_stream_as_sent(
+    endpoint: Endpoint, model_server: StubModel
+) -> None:
+    select_local(endpoint.sessions)
+    model_server.frames = USAGE_FRAMES
+
+    text = await _chat_in_session(endpoint, "ses_gauge")
+
+    assert "stream_options" not in sent(model_server)
+    assert '"prompt_tokens": 5120' in text
+    assert text.rstrip().endswith("data: [DONE]")
+
+
+async def test_a_stream_that_reports_no_usage_leaves_the_session_unmeasured(
+    endpoint: Endpoint, model_server: StubModel
+) -> None:
+    select_local(endpoint.sessions)
+
+    await _chat_in_session(endpoint, "ses_quiet")
+
+    assert last_prompt("ses_quiet") is None
+
+
+async def test_a_request_with_no_session_is_answered_and_nothing_is_kept(
+    endpoint: Endpoint, model_server: StubModel
+) -> None:
+    select_local(endpoint.sessions)
+    model_server.frames = USAGE_FRAMES
+
+    await _chat_in_session(endpoint, None)
+
+    assert last_prompt(None) is None
 
 
 async def test_a_local_runtime_that_is_not_running_is_said_so(

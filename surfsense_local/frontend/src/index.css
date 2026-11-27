@@ -192,6 +192,13 @@
     /* The interface runs 25% larger; rem-based sizes follow, px ones do not. */
     font-size: 125%;
   }
+  /* A phone is at the browser's 100%. The width is COMPACT_BELOW_PX - 1;
+     compact-text-size.test.ts keeps the two equal. */
+  @media (max-width: 1023px) {
+    html {
+      font-size: 100%;
+    }
+  }
   #root {
     /* `--app-height` is the visible height on a phone, which a keyboard shrinks. */
     height: var(--app-height, 100svh);

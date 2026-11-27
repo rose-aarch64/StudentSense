@@ -46,6 +46,10 @@ export type ChatStreamEvent =
   // Where the plan answering stands after a reply: past its limit on extra
   // usage, or not, until `resets_at` (Unix seconds).
   | { type: "plan-extra-usage"; using: boolean; resets_at: number | null }
+  // How much of the history budget the thread has spent, before and after a
+  // reply. `budget` is null where there is none to measure against.
+  // An agent thread has none; an unknown window uses the fixed history budget.
+  | { type: "context-usage"; used: number; budget: number | null }
   | ({ type: "agent-step" } & AgentStep)
   | ({ type: "permission-request" } & PermissionRequest)
   | { type: "permission-replied"; id: string; reply: string }

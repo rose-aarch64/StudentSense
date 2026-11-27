@@ -32,6 +32,7 @@ SurfSense, Studio, Markdown, llama.cpp, GGUF, Hugging Face, API, MCP, MCP's tran
 | Q&A (in "Basic (Q&A)") | Q&A | Q&A | 问答 | सवाल-जवाब | Q&A | P&R | Q&R | P&R | вопрос-ответ |
 | shell command | シェルコマンド | 셸 명령 | shell 命令 | शेल कमांड | Shell-Befehl | comando de shell | commande shell | comando de shell | команда оболочки |
 | model | モデル | 모델 | 模型 | मॉडल | Modell | modelo | modèle | modelo | модель |
+| token (the unit a model reads; not an access token) | トークン | 토큰 | token | टोकन | Token | token | token | token | токен |
 | download | ダウンロード † | 다운로드 | 下载 | डाउनलोड | herunterladen | descargar | télécharger | baixar | скачать |
 | settings | 設定 | 설정 | 设置 | सेटिंग्स | Einstellungen | ajustes | Paramètres | Configurações | настройки |
 | slides | スライド † | 슬라이드 | 幻灯片 | स्लाइड | Präsentation † | diapositivas | Présentation | Slides | Слайды |

@@ -152,6 +152,75 @@ describe("the dashboard on a phone", () => {
     expect(within(menu).getByRole("button", { name: "Chats" })).toBeTruthy()
   })
 
+  it("keeps the sources in a bar below the chat, not in the menu", async () => {
+    stubMedia(true)
+    vi.stubGlobal("fetch", phoneServer())
+    const user = userEvent.setup()
+    page()
+    await screen.findByRole("textbox", { name: "Message" })
+
+    await user.click(screen.getByRole("button", { name: "Open menu" }))
+    const menu = screen.getByRole("dialog", { name: "Menu" })
+    expect(within(menu).queryByLabelText("Workspace sources")).toBeNull()
+    await user.click(within(menu).getByRole("button", { name: "Close menu" }))
+
+    const bar = screen.getByRole("button", { name: "Sources (0 selected)" })
+    expect(bar.closest("[role=dialog]")).toBeNull()
+    await user.click(bar)
+
+    expect(screen.getByLabelText("Workspace sources")).toBeTruthy()
+    expect(
+      screen
+        .getByRole("textbox", { name: "Message", hidden: true })
+        .closest("[hidden]")
+    ).not.toBeNull()
+  })
+
+  it("shows a source preview in the menu when one is opened from the list below the chat", async () => {
+    stubMedia(true)
+    const pdf = {
+      id: 42,
+      title: "report.pdf",
+      document_type: "FILE",
+      mime_type: "application/pdf",
+      status: "pending",
+      error_message: null,
+      created_at: "2026-09-05T00:00:00Z",
+      updated_at: "2026-09-05T00:00:00Z",
+    }
+    const server = phoneServer()
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const path = String(input)
+        if (path.includes("/documents?")) return Response.json([pdf])
+        if (path.endsWith("/documents/42/original")) {
+          return new Response(new Uint8Array([37, 80, 68, 70, 45, 49, 46, 55]))
+        }
+        return server(input)
+      })
+    )
+    const user = userEvent.setup()
+    page()
+    await screen.findByRole("textbox", { name: "Message" })
+    await user.click(screen.getByRole("button", { name: /^Sources/ }))
+
+    await user.click(await screen.findByRole("button", { name: "report.pdf" }))
+
+    const menu = screen.getByRole("dialog", { name: "Menu" })
+    expect(
+      await within(menu).findByRole("complementary", {
+        name: "Source preview",
+      })
+    ).toBeTruthy()
+
+    await user.click(
+      within(menu).getByRole("button", { name: "Close source preview" })
+    )
+
+    expect(screen.queryByRole("dialog", { name: "Menu" })).toBeNull()
+  })
+
   it("switches workspace from the menu and closes it", async () => {
     stubMedia(true)
     const fetchMock = phoneServer()

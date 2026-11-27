@@ -640,7 +640,10 @@ An unknown window is not a narrow one. A remote endpoint reports no `n_ctx`, so
 history falls back to the previous constant, 3,000 tokens, and
 `answer_max_tokens()` returns `None`: capping a reply to this app's reserve on an
 endpoint whose real window might be far larger would truncate answers for a limit
-that was never theirs.
+that was never theirs. A llama-server reached through an OpenAI-compatible
+connection on this machine or network does report one, at `/props`
+([Chat](../chat.md#message-assembly)); it sets the history budget, and the reply
+stays uncapped for the same reason.
 
 History is priced by the model's own tokenizer where it can be: `token_count()`
 calls llama.cpp's `/tokenize`, proxied to the loaded worker the same way `/props`

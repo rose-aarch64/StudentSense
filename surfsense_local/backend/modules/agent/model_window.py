@@ -35,6 +35,9 @@ async def selected_model_window(session: Session) -> tuple[str, int]:
         window = (
             await _plan_window(session, plan, selected.name) if plan else None
         ) or remote_context_window(selected.name, catalog_provider)
+    # Never a window a llama-server behind a connection reports: given its real
+    # 16,384, opencode would summarise at 12,288, which its own 12,000 tokens of
+    # instructions and tools sit just under, and a turn that read a note stalled.
     return selected.name, window or FALLBACK_WINDOW
 
 

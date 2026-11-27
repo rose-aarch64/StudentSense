@@ -1,18 +1,22 @@
-import type { ReactNode } from "react"
+import { useState, type ReactNode } from "react"
 
 import { intl } from "@/i18n/intl"
 
 import { CompactSheet } from "./compact-sheet"
+import { CompactSources } from "./compact-sources"
 
 /**
- * The phone's columns: the chat fills the window, and the sidebar and the
- * detail panel are full-screen sheets over it. The workspace rail sits above
- * the sidebar in the drawer, where the desktop has it beside the columns.
+ * The phone's columns: the chat fills the window, with the sources in a bar
+ * below it, and the sidebar and the detail panel are full-screen sheets over
+ * it. The workspace rail sits above the sidebar in the drawer, where the
+ * desktop has it beside the columns.
  */
 export function CompactColumns({
   chat,
   rail,
   sidebar,
+  sources,
+  selectedSourceCount,
   drawerOpen,
   onDrawerClose,
   detail,
@@ -22,6 +26,9 @@ export function CompactColumns({
   chat: ReactNode
   rail: ReactNode
   sidebar: ReactNode
+  // The sources list, shown in the bar below the chat and not in the sidebar.
+  sources: ReactNode
+  selectedSourceCount: number
   drawerOpen: boolean
   onDrawerClose: () => void
   // A citation or an artifact, over the chat.
@@ -29,9 +36,25 @@ export function CompactColumns({
   detailOpen: boolean
   onDetailClose: () => void
 }) {
+  // Not saved, like the drawer: a phone opens on the chat.
+  const [sourcesOpen, setSourcesOpen] = useState(false)
   return (
     <section className="relative flex h-full min-h-0 min-w-0 flex-col overflow-clip bg-background">
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col">{chat}</div>
+      {/* Hidden, not unmounted, while the list is open: the thread keeps its
+          scroll and the composer its draft. */}
+      <div
+        hidden={sourcesOpen}
+        className="flex min-h-0 min-w-0 flex-1 flex-col"
+      >
+        {chat}
+      </div>
+      <CompactSources
+        open={sourcesOpen}
+        onOpenChange={setSourcesOpen}
+        selectedCount={selectedSourceCount}
+      >
+        {sources}
+      </CompactSources>
       <CompactSheet
         open={drawerOpen}
         side="start"

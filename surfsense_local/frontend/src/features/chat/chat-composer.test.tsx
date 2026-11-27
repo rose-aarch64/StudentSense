@@ -101,7 +101,9 @@ function Harness({
   startup = null,
   mentionables,
   onRun,
+  contextUsage,
 }: {
+  contextUsage?: { used: number; budget: number | null } | null
   children?: ReactNode
   placement?: "center" | "bottom"
   model?: ModelSelection
@@ -135,6 +137,7 @@ function Harness({
           threadMode={threadMode}
           onOpenPlugins={onOpenPlugins}
           mentionables={mentionables}
+          contextUsage={contextUsage}
         />
         {children}
       </AssistantRuntimeProvider>
@@ -904,5 +907,25 @@ describe("chat composer", () => {
 
     expect(plugins.getAttribute("aria-disabled")).toBe("true")
     expect(plugins.textContent).toContain("Plugins work in Agentic chats")
+  })
+
+  it("shows how much of the history budget an open chat has spent", () => {
+    render(
+      <TooltipProvider>
+        <Harness placement="bottom" contextUsage={{ used: 420, budget: 1000 }} />
+      </TooltipProvider>
+    )
+
+    expect(screen.getByRole("button", { name: "History used: 42%" })).toBeTruthy()
+  })
+
+  it("shows no percentage for a chat without a usage figure", () => {
+    render(
+      <TooltipProvider>
+        <Harness placement="bottom" />
+      </TooltipProvider>
+    )
+
+    expect(screen.queryByRole("button", { name: /^History used/ })).toBeNull()
   })
 })

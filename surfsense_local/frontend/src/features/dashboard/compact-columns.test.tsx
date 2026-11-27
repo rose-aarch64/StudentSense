@@ -12,6 +12,8 @@ function columns(over: Partial<ComponentProps<typeof CompactColumns>> = {}) {
     chat: <p>chat</p>,
     rail: <nav aria-label="Workspaces">rail</nav>,
     sidebar: <p>sidebar</p>,
+    sources: <p>sources list</p>,
+    selectedSourceCount: 2,
     drawerOpen: false,
     onDrawerClose: vi.fn(),
     detail: <p>detail</p>,
@@ -24,6 +26,11 @@ function columns(over: Partial<ComponentProps<typeof CompactColumns>> = {}) {
 }
 
 afterEach(cleanup)
+
+/** On screen: mounted and not inside a `hidden` ancestor. */
+function shown(text: string) {
+  return screen.getByText(text).closest("[hidden]") === null
+}
 
 describe("the compact columns", () => {
   it("shows the chat and keeps both sheets out of the accessibility tree until opened", () => {
@@ -42,6 +49,50 @@ describe("the compact columns", () => {
     expect(
       rail.compareDocumentPosition(sidebar) & Node.DOCUMENT_POSITION_FOLLOWING
     ).toBeTruthy()
+  })
+
+  it("keeps the sources in a collapsed bar below the chat, with the count of ticked ones", () => {
+    columns({ selectedSourceCount: 2 })
+
+    const bar = screen.getByRole("button", { name: "Sources (2 selected)" })
+    expect(bar.getAttribute("aria-expanded")).toBe("false")
+    expect(shown("chat")).toBe(true)
+    expect(shown("sources list")).toBe(false)
+    expect(
+      screen.getByText("chat").compareDocumentPosition(bar) &
+        Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy()
+  })
+
+  it("opens the list over the chat and brings the chat back when the bar is tapped again", async () => {
+    columns()
+    const user = userEvent.setup()
+    const bar = screen.getByRole("button", { name: "Sources (2 selected)" })
+
+    await user.click(bar)
+
+    expect(bar.getAttribute("aria-expanded")).toBe("true")
+    expect(shown("sources list")).toBe(true)
+    expect(shown("chat")).toBe(false)
+
+    await user.click(bar)
+
+    expect(shown("chat")).toBe(true)
+    expect(shown("sources list")).toBe(false)
+  })
+
+  it("keeps the chat and the list mounted, so a draft, a scroll and a filter survive", async () => {
+    columns()
+    const chat = screen.getByText("chat")
+    const list = screen.getByText("sources list")
+    const user = userEvent.setup()
+    const bar = screen.getByRole("button", { name: "Sources (2 selected)" })
+
+    await user.click(bar)
+    await user.click(bar)
+
+    expect(screen.getByText("chat")).toBe(chat)
+    expect(screen.getByText("sources list")).toBe(list)
   })
 
   it("closes the drawer from its button and from Escape", async () => {

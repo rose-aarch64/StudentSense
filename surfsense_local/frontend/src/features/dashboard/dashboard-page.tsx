@@ -247,6 +247,8 @@ function WorkspaceDashboard({
   const closeSourcePreview = () => {
     setSourcePreviewId(null)
     writeSourcePreview(workspace.id, null)
+    // On a phone the preview shows in the drawer, so it leaves with it.
+    if (compact) setDrawerOpen(false)
   }
   // Stable, like everything else the memoized sources panel takes: this page
   // re-renders when a run starts, ends or changes state, and for a title, a
@@ -256,6 +258,8 @@ function WorkspaceDashboard({
     const next = sourcePreviewId === documentId ? null : documentId
     setSourcePreviewId(next)
     writeSourcePreview(workspace.id, next)
+    // The list is below the chat on a phone; the preview takes the drawer.
+    if (compact && next !== null) setDrawerOpen(true)
   })
   const sourceUploads = useMemo(
     () => ({
@@ -399,7 +403,11 @@ function WorkspaceDashboard({
     chat.finishTitleAnimation()
   )
   // On a phone a choice in the drawer closes it.
-  const closeDrawer = useStableCallback(() => setDrawerOpen(false))
+  const closeDrawer = useStableCallback(() => {
+    // Closed on its X, a preview must not wait behind the menu's next opening.
+    if (sourcePreviewOpen) closeSourcePreview()
+    setDrawerOpen(false)
+  })
   const drawerNewChat = useStableCallback(() => {
     startNewChat()
     setDrawerOpen(false)
@@ -533,7 +541,7 @@ function WorkspaceDashboard({
           unreadThreadIds={chat.unreadThreadIds}
           actions={sidebarActions}
           headerStart={compact ? null : sidebarHeaderStart}
-          sources={sourcesList}
+          sources={compact ? null : sourcesList}
           footer={sidebarFooter}
           todosOpen={compact ? todosOpen : undefined}
           onTodosOpenChange={compact ? setTodosOpen : undefined}
@@ -621,6 +629,8 @@ function WorkspaceDashboard({
             )}
             rail={compactRail}
             sidebar={sidebarNode}
+            sources={sourcesList}
+            selectedSourceCount={sources.includedDocumentIds.length}
             drawerOpen={drawerOpen}
             onDrawerClose={closeDrawer}
             detail={detailNode}

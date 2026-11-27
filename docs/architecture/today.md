@@ -13,6 +13,8 @@ The picture and the persona follow a short instruction in the system message. Th
 
 One file, `persona.md` in the data folder, read by `GET /persona` and replaced by `PUT /persona`. An empty text deletes the file. Text over 20,000 characters is refused. [`with_persona`](../../surfsense_local/backend/modules/persona/apply.py) appends it to the instruction of a Basic (Q&A) chat turn, of the Today window and of the agent, after a line saying it sets tone only. The agent's instructions come from `agent_prompt()`, which both engines read: each turn rewrites opencode's configuration from it, so an edit reaches opencode and Claude Code on the next turn ([agent](agent.md#the-configuration)). The edit box is Settings › Persona.
 
+The agent can have its own, a second file `agent-persona.md` read by `GET /persona/agent` and replaced by `PUT /persona/agent`, with the same rules. `agent_prompt()` appends it in place of `persona.md` when it exists, and falls back to `persona.md` when it does not, so nothing changes until one is saved. It is a separate file because the agent's prompt is about 12,000 tokens before the persona, and a small local model dropped a long persona on source-reading replies; a short one is followed better there ([agent](agent.md#the-configuration)). Basic chat and the Today window never read it. Its box is under the persona's, in Settings › Persona.
+
 ## Known gaps
 
 - The window cannot add, move or finish a task.

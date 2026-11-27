@@ -319,11 +319,15 @@ class RemoteEndpoint:
     `status` answers every chat request with that error instead; `stall`, set,
     holds each reply open after its answer until the event fires, as a model
     still generating does. `open_streams` counts replies being written right
-    now, so a test can see two run at once.
+    now, so a test can see two run at once. `props_n_ctx`, set, is the window
+    this host reports at `/props`, as a llama-server does; `requests` are the
+    chat bodies it received.
     """
 
     def __init__(self) -> None:
         self.status: int | None = None
+        self.props_n_ctx: int | None = None
+        self.requests: list[dict] = []
         self.stall: threading.Event | None = None
         self.open_streams = 0
         self.most_open = 0
@@ -335,10 +339,15 @@ _REMOTE = RemoteEndpoint()
 
 class StubRemoteChat(BaseHTTPRequestHandler):
     def do_GET(self) -> None:
+        if self.path == "/props" and _REMOTE.props_n_ctx is not None:
+            settings = {"default_generation_settings": {"n_ctx": _REMOTE.props_n_ctx}}
+            self._send(json.dumps(settings).encode())
+            return
         self._send(b'{"object": "list", "data": [{"id": "remote-model"}]}')
 
     def do_POST(self) -> None:
         request = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+        _REMOTE.requests.append(request)
         # A thread's title is a short request of its own; only the reply stalls.
         titling = request.get("max_tokens") == 12
         if _REMOTE.status is not None:

@@ -39,6 +39,32 @@ def test_openrouter_keeps_the_agents_session_on_one_provider() -> None:
     assert body["model"] == "openai/gpt-5.5"
 
 
+@pytest.mark.parametrize(
+    "url",
+    [
+        "http://100.73.187.110:8080/v1/chat/completions",
+        "http://127.0.0.1:8080/v1/chat/completions",
+        "https://api.openai.com/v1/chat/completions",
+    ],
+)
+def test_a_stream_is_never_asked_to_report_usage(url: str) -> None:
+    """The gauge reads the prompt size a llama-server reports unasked. Asking it
+    to (`stream_options.include_usage`) made a turn near the window truncate
+    its answer in 3 of 6 runs, against none of 6 without."""
+    body = shaped_request(TURN, _address(url, "Qwen3-8B"), "ses_42")
+
+    assert "stream_options" not in body
+
+
+def test_what_opencode_asked_for_in_stream_options_stands() -> None:
+    address = _address("http://127.0.0.1:8080/v1/chat/completions", "Qwen3-8B")
+    own = {**TURN, "stream_options": {"include_usage": False}}
+
+    assert shaped_request(own, address, None)["stream_options"] == {
+        "include_usage": False
+    }
+
+
 def test_the_local_runtime_gets_no_session_field() -> None:
     """llama-server has one slot, matched by its prefix; a key would route nothing."""
     address = _address("http://127.0.0.1:8080/v1/chat/completions", "Qwen3-8B")

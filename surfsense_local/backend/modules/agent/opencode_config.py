@@ -15,7 +15,7 @@ from typing import Any
 from modules.jobs.packs.skills import JobSkill
 from modules.llm.catalog.remote.manifest.lookup import CallRoute
 from modules.persona.apply import with_persona
-from modules.persona.store import persona_text
+from modules.persona.store import agent_persona_text, persona_text
 
 PROVIDER = "surfsense"
 AGENT = "surfsense"
@@ -156,6 +156,17 @@ class AgentSetup:
     job_skills: tuple[JobSkill, ...] = ()
 
 
+def compaction_buffer(window: int) -> int:
+    """The room compaction keeps free of a window."""
+    output = min(window // 4, OUTPUT_CAP)
+    return min(output, max(window // 10, RESERVE_FLOOR))
+
+
+def compaction_point(window: int) -> int:
+    """The prompt size at which opencode starts summarising a session."""
+    return window - compaction_buffer(window)
+
+
 def opencode_config(setup: AgentSetup, agent_dir: Path) -> dict[str, Any]:
     """The whole configuration, from what the API knows about the selected model."""
     output = min(setup.window // 4, OUTPUT_CAP)
@@ -176,7 +187,7 @@ def opencode_config(setup: AgentSetup, agent_dir: Path) -> dict[str, Any]:
         ],
         "compaction": {
             "auto": True,
-            "buffer": min(output, max(setup.window // 10, RESERVE_FLOOR)),
+            "buffer": compaction_buffer(setup.window),
             "keep": {"tokens": min(setup.window // KEEP_SHARE, KEEP_CAP)},
         },
         "providers": {
@@ -244,8 +255,9 @@ def declares_image_input(path: Path) -> bool:
 def agent_prompt() -> str:
     """SurfSense's instructions to the agent, in place of opencode's coding prompt.
 
-    The user's persona follows them. Each turn rewrites the configuration from
-    this, so an edit reaches opencode, and Claude Code, on the next turn.
+    The user's persona follows them: the agent's own when there is one, else
+    the shared one. Each turn rewrites the configuration from this, so an edit
+    reaches opencode, and Claude Code, on the next turn.
     """
     base = (
         files("modules.agent")
@@ -253,7 +265,7 @@ def agent_prompt() -> str:
         .read_text(encoding="utf-8")
         .strip()
     )
-    return with_persona(base, persona_text())
+    return with_persona(base, agent_persona_text() or persona_text())
 
 
 def write_opencode_config(path: Path, setup: AgentSetup) -> bool:
