@@ -21,6 +21,8 @@ class ModuleData:
     name: str
     pages: list[str] = field(default_factory=list)
     files: list[int] = field(default_factory=list)
+    # (title, url) of each external link the module holds.
+    links: list[tuple[str, str]] = field(default_factory=list)
 
 
 @dataclass
@@ -113,13 +115,24 @@ def canvas_app(site: CanvasSite) -> Starlette:
         course = course_of(request)
         listed = []
         for module in course.modules:
-            items = [
-                {"type": "Page", "title": course.pages[slug]["title"], "page_url": slug}
-                for slug in module.pages
-            ] + [
-                {"type": "File", "title": course.files[fid][0], "content_id": fid}
-                for fid in module.files
-            ]
+            items = (
+                [
+                    {
+                        "type": "Page",
+                        "title": course.pages[slug]["title"],
+                        "page_url": slug,
+                    }
+                    for slug in module.pages
+                ]
+                + [
+                    {"type": "File", "title": course.files[fid][0], "content_id": fid}
+                    for fid in module.files
+                ]
+                + [
+                    {"type": "ExternalUrl", "title": title, "external_url": url}
+                    for title, url in module.links
+                ]
+            )
             listed.append({"id": module.id, "name": module.name, "items": items})
         return JSONResponse(listed)
 

@@ -35,6 +35,11 @@ def build_summaries(snapshot: CourseSnapshot) -> list[Summary]:
             "Modules",
             "\n\n".join(_module_block(m) for m in snapshot.modules),
         ),
+        (
+            "links_note",
+            "Links",
+            "\n\n".join(block for m in snapshot.modules if (block := _links_block(m))),
+        ),
     ]
     return [
         Summary(kind, f"{TITLE_PREFIX}{name}", f"# {name}\n\n{body}")
@@ -55,6 +60,16 @@ def _assignment_line(assignment: dict) -> str:
 def _announcement_block(post: dict) -> str:
     posted = (post.get("posted_at") or "")[:10]
     return f"## {post.get('title')} ({posted})\n{html_to_text(post.get('message'))}"
+
+
+def _links_block(module) -> str:
+    """A module's external links with their addresses; empty when it has none."""
+    lines = [
+        f"- [{i.get('title')}]({i['external_url']})"
+        for i in module.items
+        if i.get("external_url")
+    ]
+    return f"## {module.name}\n" + "\n".join(lines) if lines else ""
 
 
 def _module_block(module) -> str:

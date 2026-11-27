@@ -47,7 +47,7 @@ A client that follows `Link` headers pages every list; one that points at anothe
 | `term` | the term | a [workspace folder](workspace-folders.md#canvas-sync), named for the term and renamed with it, that holds the term's workspaces |
 | `overview_folder`, `unsorted_folder` | the course | the `Overview` folder of summary notes, and `Unsorted` for a page in no module |
 | `module` | the module | its folder, such as `02 · Module B Threats`: numbered by position, the teacher's leading dates dropped, renamed as the module is |
-| `syllabus_note`, `assignments_note`, `announcements_note`, `modules_note` | the course | a summary note titled `Canvas · Syllabus` and so on, left out when empty |
+| `syllabus_note`, `assignments_note`, `announcements_note`, `modules_note`, `links_note` | the course | a summary note titled `Canvas · Syllabus` and so on, left out when empty. `Canvas · Links` lists each module's external links with their addresses, as a markdown link each, since the Modules note names a link but cannot be followed from |
 | `page` | the page | a note titled `Canvas · Page · <title>`, filed in its module's folder, retitled and moved as the page is |
 | `file` | the file | a document titled as an upload is (its last path segment), moved with its module, with the file's size and modified time kept to tell an edit |
 | `assignment` | the assignment | a [task](todos.md) |

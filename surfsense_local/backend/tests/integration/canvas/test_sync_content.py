@@ -260,3 +260,40 @@ async def test_a_page_removed_from_canvas_is_left_in_place(
     await sync(client)
 
     assert "Canvas · Page · Intro" in await documents(client, ws)
+
+
+async def test_external_links_are_kept_with_their_urls_in_a_links_note(
+    client: AsyncClient, canvas_site: CanvasSite
+) -> None:
+    """The Modules note names a link; only its address lets anyone follow it."""
+    course = await start(client, canvas_site)
+    data = canvas_site.course(course)
+    data.modules = [
+        ModuleData(
+            5,
+            "Module A",
+            links=[("Kost's Blog", "https://example.org/blog")],
+        ),
+        ModuleData(6, "Module B"),
+    ]
+
+    ws = await sync(client)
+
+    note = (await documents(client, ws))["Canvas · Links"]
+    assert note["folder_id"] == (await folders(client, ws))["Overview"]
+    text = await content_of(client, ws, note["id"])
+    assert "Module A" in text
+    assert "[Kost's Blog](https://example.org/blog)" in text
+    assert "Module B" not in text
+
+
+async def test_a_course_with_no_external_links_makes_no_links_note(
+    client: AsyncClient, canvas_site: CanvasSite
+) -> None:
+    """An empty Links note would only be noise in search."""
+    course = await start(client, canvas_site)
+    canvas_site.course(course).modules = [ModuleData(5, "Module A")]
+
+    ws = await sync(client)
+
+    assert "Canvas · Links" not in await documents(client, ws)
