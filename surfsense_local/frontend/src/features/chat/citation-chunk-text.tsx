@@ -6,6 +6,7 @@ import {
   UNTRUSTED_REHYPE_PLUGINS,
 } from "@/features/studio/viewers/streamdown-config"
 
+import { CanvasAwareLink } from "./canvas-aware-link"
 import { imagesAsTheirDescriptions } from "./citation-chunk-images"
 
 // Raw and sanitize first, so an image written as HTML goes too; harden stays last.
@@ -14,6 +15,9 @@ const CHUNK_REHYPE_PLUGINS = [
   imagesAsTheirDescriptions,
   ...UNTRUSTED_REHYPE_PLUGINS.slice(-1),
 ]
+
+// Stable, so the markdown is not rebuilt on every render.
+const CHUNK_COMPONENTS = { a: CanvasAwareLink }
 
 /** A chunk of a source, as formatted text. Its text is a file's or a web page's own,
  *  so it loads no remote image, and a long address breaks rather than leave the card. */
@@ -25,6 +29,7 @@ export function CitationChunkText({ content }: { content: string }) {
         controls={false}
         plugins={streamdownPlugins}
         rehypePlugins={CHUNK_REHYPE_PLUGINS}
+        components={CHUNK_COMPONENTS}
         linkSafety={STREAMDOWN_LINK_SAFETY}
       >
         {content}

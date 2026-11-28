@@ -71,6 +71,9 @@ def run_sync(
             )
             if snapshot.pages_tab_off:
                 log.add("pages_tab_off", name=name)
+            for skipped in snapshot.skipped_files:
+                # A linked file that cannot be stored stays a link to Canvas.
+                log.add("file_skipped", name=skipped)
             with factory() as session:
                 # Before anything is written or fetched, so one prompt asks
                 # for every host the course's files sit on.

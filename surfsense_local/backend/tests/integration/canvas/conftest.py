@@ -23,6 +23,10 @@ class ModuleData:
     files: list[int] = field(default_factory=list)
     # (title, url) of each external link the module holds.
     links: list[tuple[str, str]] = field(default_factory=list)
+    # Ids of the course's assignments the module holds.
+    assignments: list[int] = field(default_factory=list)
+    # Items exactly as Canvas lists them, in its order, overriding the fields above.
+    items: list[dict] | None = None
 
 
 @dataclass
@@ -132,7 +136,19 @@ def canvas_app(site: CanvasSite) -> Starlette:
                     {"type": "ExternalUrl", "title": title, "external_url": url}
                     for title, url in module.links
                 ]
+                + [
+                    {
+                        "type": "Assignment",
+                        "title": next(
+                            a["name"] for a in course.assignments if a["id"] == aid
+                        ),
+                        "content_id": aid,
+                    }
+                    for aid in module.assignments
+                ]
             )
+            if module.items is not None:
+                items = module.items
             listed.append({"id": module.id, "name": module.name, "items": items})
         return JSONResponse(listed)
 

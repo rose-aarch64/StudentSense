@@ -32,7 +32,7 @@ The desktop grid needs 1328 px (a 216 px rail, a sidebar of at least 272 px, a c
 
 ## Known gaps
 
-- Studio, source upload and management, Settings, Jobs, Plugins and Canvas have no phone design. They are not hidden, and nothing is promised about how they look.
+- Studio, source upload and management, Settings, Jobs, Plugins and the Canvas settings screen have no phone design. They are not hidden, and nothing is promised about how they look. A synced class's [Modules view](canvas.md#the-modules-view) is the exception: it lives in the sources list, so it opens from the sources bar.
 - A window between 1024 and 1328 px still scrolls sideways, as it always did.
 - Crossing the breakpoint moves the chat between parents, so a draft not yet sent is lost; the workspace and the open chat are kept.
 - No microphone on a phone: it needs HTTPS, and the Tailscale install is served over plain HTTP.

@@ -1,9 +1,14 @@
 from dataclasses import dataclass, field
 from pathlib import PurePosixPath
-from urllib.parse import quote
+from urllib.parse import quote, urlsplit
 
-from modules.canvas.client import CanvasClient, CanvasNotFoundError
+from modules.canvas.client import (
+    CanvasClient,
+    CanvasNotFoundError,
+    CanvasUnreachableError,
+)
 from modules.canvas.html_text import html_to_text
+from modules.canvas.sync.linked_files import linked_file_ids
 from modules.documents.storage import SUPPORTED_UPLOAD_SUFFIXES
 
 
@@ -27,12 +32,14 @@ class Page:
 
 @dataclass(frozen=True)
 class FileRef:
-    """A file a module holds, with the signed link to fetch it by."""
+    """A file a module holds, or that the course's text links to, with the signed
+    link to fetch it by."""
 
     file_id: int
     name: str
     url: str
-    module: Module
+    # None for a file only the text links to.
+    module: Module | None
     # Canvas's own account of the file's version: a change in either means an edit.
     size: int | None
     modified_at: str | None
@@ -50,25 +57,108 @@ class CourseSnapshot:
     files: list[FileRef]
     # The course turned its Pages tab off, so its pages came through its modules.
     pages_tab_off: bool = False
+    # The school's address, which the notes' relative links were made absolute with.
+    base_url: str = ""
+    # Linked files that could not be stored, by name (by id when Canvas gave none).
+    skipped_files: list[str] = field(default_factory=list)
 
 
 def read_course(canvas: CanvasClient, course_id: int) -> CourseSnapshot:
     course = canvas.get_one(f"/courses/{course_id}", {"include[]": "syllabus_body"})
     modules = read_modules(canvas, course_id)
     pages, pages_tab_off = _read_pages(canvas, course_id, modules)
+    syllabus = html_to_text(course.get("syllabus_body"), canvas.origin)
+    assignments = canvas.get_all(
+        f"/courses/{course_id}/assignments", {"include[]": "submission"}
+    )
+    announcements = canvas.get_all(
+        "/announcements", {"context_codes[]": f"course_{course_id}"}
+    )
+    module_files = _read_files(canvas, course_id, modules)
+    texts = [
+        syllabus,
+        *(page.body for page in pages),
+        *(a.get("description") or "" for a in assignments),
+        *(a.get("message") or "" for a in announcements),
+    ]
+    linked, skipped = _read_linked_files(
+        canvas,
+        course_id,
+        texts,
+        announcements,
+        {ref.file_id for ref in module_files},
+    )
     return CourseSnapshot(
-        syllabus=html_to_text(course.get("syllabus_body")),
-        assignments=canvas.get_all(
-            f"/courses/{course_id}/assignments", {"include[]": "submission"}
-        ),
-        announcements=canvas.get_all(
-            "/announcements", {"context_codes[]": f"course_{course_id}"}
-        ),
+        syllabus=syllabus,
+        assignments=assignments,
+        announcements=announcements,
         modules=modules,
         pages=pages,
-        files=_read_files(canvas, course_id, modules),
+        files=[*module_files, *linked],
         pages_tab_off=pages_tab_off,
+        base_url=canvas.origin,
+        skipped_files=skipped,
     )
+
+
+def _read_linked_files(
+    canvas: CanvasClient,
+    course_id: int,
+    texts: list[str],
+    announcements: list[dict],
+    held_ids: set[int],
+) -> tuple[list[FileRef], list[str]]:
+    """The files the texts link to and the announcements attach, that no module
+    holds, and the names of those that cannot be stored.
+
+    A linked file Canvas refuses (locked, or for another section) is skipped, not
+    fatal: the link in the note still goes to Canvas.
+    """
+    school_host = urlsplit(canvas.origin).netloc
+    files: list[FileRef] = []
+    skipped: list[str] = []
+    seen = set(held_ids)
+    for file_id in linked_file_ids(texts, course_id, school_host):
+        if file_id in seen:
+            continue
+        seen.add(file_id)
+        try:
+            detail = canvas.get_one(f"/courses/{course_id}/files/{file_id}")
+        except (CanvasNotFoundError, CanvasUnreachableError):
+            skipped.append(str(file_id))
+            continue
+        _keep_or_skip(files, skipped, file_id, detail)
+    for post in announcements:
+        for attachment in post.get("attachments") or []:
+            file_id = attachment.get("id")
+            if file_id is None or file_id in seen:
+                continue
+            seen.add(file_id)
+            _keep_or_skip(files, skipped, file_id, attachment)
+    return files, skipped
+
+
+def _keep_or_skip(
+    files: list[FileRef], skipped: list[str], file_id: int, detail: dict
+) -> None:
+    name = detail.get("display_name") or ""
+    if detail.get("url") and _is_readable(name):
+        files.append(
+            FileRef(
+                file_id,
+                name,
+                detail["url"],
+                None,
+                detail.get("size"),
+                detail.get("modified_at"),
+            )
+        )
+    else:
+        skipped.append(name or str(file_id))
+
+
+def _is_readable(name: str) -> bool:
+    return PurePosixPath(name).suffix.lower() in SUPPORTED_UPLOAD_SUFFIXES
 
 
 def _read_files(
@@ -145,7 +235,7 @@ def _read_pages(
                 page_id=detail["page_id"],
                 slug=slug,
                 title=detail.get("title") or slug,
-                body=html_to_text(detail.get("body")),
+                body=html_to_text(detail.get("body"), canvas.origin),
                 module=module,
             )
         )

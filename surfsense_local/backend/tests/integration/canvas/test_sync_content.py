@@ -62,6 +62,22 @@ async def test_the_syllabus_is_a_note_in_overview_with_its_markup_removed(
     assert "Be kind" in text and "<" not in text
 
 
+async def test_a_relative_canvas_link_in_the_syllabus_becomes_the_schools_address(
+    client: AsyncClient, canvas_site: CanvasSite
+) -> None:
+    """A path in a note would resolve against this app and lead nowhere."""
+    course = await start(client, canvas_site)
+    canvas_site.course(
+        course
+    ).syllabus = '<p>Read <a href="/courses/1/files/9?wrap=1">the policy</a></p>'
+
+    ws = await sync(client)
+
+    note = (await documents(client, ws))["Canvas · Syllabus"]
+    text = await content_of(client, ws, note["id"])
+    assert f"[the policy]({canvas_site.base}/courses/1/files/9?wrap=1)" in text
+
+
 async def test_a_section_with_nothing_in_it_makes_no_note(
     client: AsyncClient, canvas_site: CanvasSite
 ) -> None:

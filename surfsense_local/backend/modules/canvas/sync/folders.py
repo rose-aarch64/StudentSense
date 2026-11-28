@@ -9,19 +9,26 @@ from modules.source_roots.managed_root import ensure_managed_root
 
 
 def ensure_folder(
-    session: Session, workspace_id: int, kind: str, canvas_id: int, name: str
+    session: Session,
+    workspace_id: int,
+    kind: str,
+    canvas_id: int,
+    name: str,
+    *,
+    rename: bool = True,
 ) -> Folder:
     """The folder of a Canvas item, at the top of the workspace's Library.
 
-    The linked one, renamed if its name changed; else a top-level folder that
-    already bears the name, so a class set up earlier is not remade; else a new one.
+    The linked one, renamed if its name changed and `rename` is set; else a
+    top-level folder that already bears the name, so a class set up earlier is
+    not remade; else a new one.
     """
     root = ensure_managed_root(session, workspace_id)
     folder = _linked(session, workspace_id, kind, canvas_id)
     if folder is None:
         folder = ensure_folder_path(session, root, [name])
         links.remember(session, kind, canvas_id, folder.id)
-    elif folder.name != name and not _name_taken(session, folder, name):
+    elif rename and folder.name != name and not _name_taken(session, folder, name):
         folder.name = name
         folder.name_key = name_key(name)
     return folder

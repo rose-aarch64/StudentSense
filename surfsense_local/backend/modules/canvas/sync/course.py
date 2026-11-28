@@ -3,6 +3,11 @@ from dataclasses import dataclass, field
 from sqlalchemy.orm import Session
 
 from modules.canvas import links
+from modules.canvas.sync.assignment_notes import (
+    ASSIGNMENT_NOTE,
+    build_assignment_notes,
+)
+from modules.canvas.sync.attachments_folder import ensure_attachments_folder
 from modules.canvas.sync.files import Held, gone_titles, place_existing
 from modules.canvas.sync.folders import ensure_folder
 from modules.canvas.sync.module_folders import (
@@ -10,10 +15,16 @@ from modules.canvas.sync.module_folders import (
     UNSORTED_FOLDER,
     module_folder_name,
 )
-from modules.canvas.sync.notes import upsert_note
+from modules.canvas.sync.notes import update_note_metadata, upsert_note
+from modules.canvas.sync.outline import OUTLINE_KEY
 from modules.canvas.sync.snapshot import CourseSnapshot, FileRef, Module
-from modules.canvas.sync.summaries import TITLE_PREFIX, build_summaries
+from modules.canvas.sync.summaries import (
+    MODULES_NOTE,
+    TITLE_PREFIX,
+    build_summaries,
+)
 from modules.canvas.sync.tasks import sync_tasks
+from modules.canvas.sync.textbook_folder import ensure_textbook_folder
 from modules.folders.models import Folder
 
 # Link kinds: what a Canvas id stands for.
@@ -70,6 +81,7 @@ def write_course(
     overview = ensure_folder(
         session, workspace_id, OVERVIEW, course_id, OVERVIEW_FOLDER
     )
+    ensure_textbook_folder(session, workspace_id, course_id)
     for summary in build_summaries(snapshot):
         _keep(
             written,
@@ -81,7 +93,13 @@ def write_course(
                 course_id,
                 summary.title,
                 summary.content,
+                summary.metadata,
             ),
+        )
+    if not snapshot.modules:
+        # No modules makes no Modules note, so the kept one must drop its outline.
+        update_note_metadata(
+            session, workspace_id, MODULES_NOTE, course_id, {OUTLINE_KEY: []}
         )
 
     used_titles: set[str] = set()
@@ -111,11 +129,47 @@ def write_course(
             ),
         )
 
+    for assignment in build_assignment_notes(snapshot):
+        folder = (
+            module_folder(assignment.module)
+            if assignment.module is not None
+            else ensure_folder(
+                session, workspace_id, UNSORTED, course_id, UNSORTED_FOLDER
+            )
+        )
+        title = assignment.title
+        if title in used_titles:
+            # Canvas allows two assignments with one name; the id keeps them apart.
+            title = f"{title} ({assignment.assignment_id})"
+        used_titles.add(title)
+        _keep(
+            written,
+            upsert_note(
+                session,
+                workspace_id,
+                folder.id,
+                ASSIGNMENT_NOTE,
+                assignment.assignment_id,
+                title,
+                assignment.content,
+            ),
+        )
+
     for ref in snapshot.files:
-        module_folder(ref.module)
+        if ref.module is not None:
+            module_folder(ref.module)
     course_folder_ids = _course_folder_ids(session, snapshot, folders)
+    attachments: Folder | None = None
     for ref in snapshot.files:
-        folder = module_folder(ref.module)
+        if ref.module is not None:
+            folder = module_folder(ref.module)
+        else:
+            if attachments is None:
+                attachments = ensure_attachments_folder(
+                    session, workspace_id, course_id
+                )
+                course_folder_ids.add(attachments.id)
+            folder = attachments
         held, document_id = place_existing(
             session, workspace_id, folder.id, ref, course_folder_ids
         )

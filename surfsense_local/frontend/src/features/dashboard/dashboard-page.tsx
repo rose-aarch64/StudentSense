@@ -51,6 +51,10 @@ import {
   SettingsDialog,
   type SettingsSectionId,
 } from "@/features/settings/settings-dialog"
+import { CoursePane } from "@/features/sources/course-view/course-pane"
+import { CanvasFileLinksProvider } from "@/features/sources/course-view/canvas-file-links"
+import { NeedsSyncLine } from "@/features/sources/course-view/needs-sync-line"
+import { useCourseView } from "@/features/sources/course-view/use-course-view"
 import { SourcesPanel } from "@/features/sources/sources-panel"
 import { useSources } from "@/features/sources/use-sources"
 import { useWebSources } from "@/features/sources/web/use-web-sources"
@@ -106,6 +110,8 @@ import { useSidebarShortcut } from "./use-sidebar-shortcut"
 // Clicking "N sources" in the composer used to switch the right rail to its
 // Sources tab. Sources now live in the always-visible left sidebar, so the
 // same click just brings that list into view instead.
+// Stable, for a class with no files known.
+const NO_FILES: Record<string, number> = {}
 const LEFT_SOURCES_ID = "workspace-left-sources"
 const LEFT_COLUMN_ID = "workspace-left-column"
 const RIGHT_PANEL_ID = "workspace-right-panel"
@@ -254,6 +260,12 @@ function WorkspaceDashboard({
   // re-renders when a run starts, ends or changes state, and for a title, a
   // thread switch, Settings and the other columns.
   const openSpeechSettings = useStableCallback(() => onOpenSpeechSettings())
+  // A link in a note opens its file's source and never closes a preview.
+  const openSourcePreview = useStableCallback((documentId: number) => {
+    setSourcePreviewId(documentId)
+    writeSourcePreview(workspace.id, documentId)
+    if (compact) setDrawerOpen(true)
+  })
   const toggleSourcePreview = useStableCallback((documentId: number) => {
     const next = sourcePreviewId === documentId ? null : documentId
     setSourcePreviewId(next)
@@ -276,6 +288,41 @@ function WorkspaceDashboard({
       edit: sources.editNote,
     }),
     [sources.writeNote, sources.loadNote, sources.editNote]
+  )
+  // Read again when any document changes, so a finished sync shows its modules.
+  const documentsSignature = useMemo(
+    () => sources.documents.map((d) => `${d.id}:${d.updated_at}`).join(","),
+    [sources.documents]
+  )
+  const { view: course } = useCourseView(workspace.id, documentsSignature)
+  const courseView = useMemo(
+    () =>
+      course?.synced ? (
+        <CoursePane
+          view={course}
+          workspaceId={workspace.id}
+          documents={sources.documents}
+          selectedDocumentIds={sources.includedDocumentIds}
+          folderTicks={sources.folderTicks}
+          onSelectionChange={sources.setDocumentIncluded}
+          onFolderSelectionChange={sources.setFolderIncluded}
+          onPreview={toggleSourcePreview}
+          onImported={sources.refresh}
+        />
+      ) : course?.needs_sync ? (
+        <NeedsSyncLine />
+      ) : undefined,
+    [
+      course,
+      workspace.id,
+      sources.documents,
+      sources.includedDocumentIds,
+      sources.folderTicks,
+      sources.setDocumentIncluded,
+      sources.setFolderIncluded,
+      toggleSourcePreview,
+      sources.refresh,
+    ]
   )
   // Built once per change of what it shows, so the memoized sidebar skips
   // every other render of this page.
@@ -317,6 +364,7 @@ function WorkspaceDashboard({
           web={webSources}
           transcriptionPaces={sources.transcriptionPaces}
           onOpenSpeechSettings={openSpeechSettings}
+          courseView={courseView}
         />
       </aside>
     ),
@@ -348,6 +396,7 @@ function WorkspaceDashboard({
       webSources,
       sources.transcriptionPaces,
       openSpeechSettings,
+      courseView,
     ]
   )
   const sidebarFooter = useMemo(
@@ -621,162 +670,172 @@ function WorkspaceDashboard({
   if (compact) {
     return (
       <OfficeOfferContext.Provider value={officeOffer}>
-        <OpenArtifactContext.Provider value={openArtifact}>
-          <CompactColumns
-            chat={renderChat(
-              <CompactMenuButton onClick={() => setDrawerOpen(true)} />,
-              <CompactTodoButton onClick={() => setTodosOpen(true)} />
-            )}
-            rail={compactRail}
-            sidebar={sidebarNode}
-            sources={sourcesList}
-            selectedSourceCount={sources.includedDocumentIds.length}
-            drawerOpen={drawerOpen}
-            onDrawerClose={closeDrawer}
-            detail={detailNode}
-            detailOpen={inspect !== null}
-            onDetailClose={closeInspect}
-          />
-          {jobsDialog}
-        </OpenArtifactContext.Provider>
+        <CanvasFileLinksProvider
+          files={course?.files ?? NO_FILES}
+          onOpen={openSourcePreview}
+        >
+          <OpenArtifactContext.Provider value={openArtifact}>
+            <CompactColumns
+              chat={renderChat(
+                <CompactMenuButton onClick={() => setDrawerOpen(true)} />,
+                <CompactTodoButton onClick={() => setTodosOpen(true)} />
+              )}
+              rail={compactRail}
+              sidebar={sidebarNode}
+              sources={sourcesList}
+              selectedSourceCount={sources.includedDocumentIds.length}
+              drawerOpen={drawerOpen}
+              onDrawerClose={closeDrawer}
+              detail={detailNode}
+              detailOpen={inspect !== null}
+              onDetailClose={closeInspect}
+            />
+            {jobsDialog}
+          </OpenArtifactContext.Provider>
+        </CanvasFileLinksProvider>
       </OfficeOfferContext.Provider>
     )
   }
   return (
     <OfficeOfferContext.Provider value={officeOffer}>
-      <OpenArtifactContext.Provider value={openArtifact}>
-        <div className="titlebar-controls">
-          {/* Docker's browser has no title bar: there it sits beside the logo. */}
-          {IN_CONTAINER ? null : (
+      <CanvasFileLinksProvider
+        files={course?.files ?? NO_FILES}
+        onOpen={openSourcePreview}
+      >
+        <OpenArtifactContext.Provider value={openArtifact}>
+          <div className="titlebar-controls">
+            {/* Docker's browser has no title bar: there it sits beside the logo. */}
+            {IN_CONTAINER ? null : (
+              <div
+                {...reveal}
+                className={cn("titlebar-controls-start", reveal.className)}
+              >
+                <SidebarToggle
+                  open={sidebarOpen}
+                  controls={LEFT_COLUMN_ID}
+                  onToggle={toggleSidebar}
+                  className="pointer-events-auto size-6"
+                />
+              </div>
+            )}
             <div
               {...reveal}
-              className={cn("titlebar-controls-start", reveal.className)}
+              className={cn("titlebar-controls-end", reveal.className)}
             >
-              <SidebarToggle
-                open={sidebarOpen}
-                controls={LEFT_COLUMN_ID}
-                onToggle={toggleSidebar}
-                className="pointer-events-auto size-6"
-              />
+              <TitleBarUpdate />
+              {/* Docker's browser has no title bar: there the toggle sits on a heading's line. */}
+              {IN_CONTAINER
+                ? null
+                : rightPanelToggle("pointer-events-auto size-6")}
             </div>
-          )}
-          <div
-            {...reveal}
-            className={cn("titlebar-controls-end", reveal.className)}
-          >
-            <TitleBarUpdate />
-            {/* Docker's browser has no title bar: there the toggle sits on a heading's line. */}
-            {IN_CONTAINER
-              ? null
-              : rightPanelToggle("pointer-events-auto size-6")}
           </div>
-        </div>
-        {/* The widths live in here, so a drag of an edge renders the column
+          {/* The widths live in here, so a drag of an edge renders the column
           boxes and edges, not the sidebar, the thread or Studio. */}
-        <DashboardColumns
-          sidebarOpen={sidebarOpen}
-          sidebarWide={sourcePreviewOpen}
-          rightPanelOpen={rightPanelOpen}
-          rightPanelWide={inspect !== null}
-        >
-          {/* Docker's browser has no title bar: one toggle pinned to the
+          <DashboardColumns
+            sidebarOpen={sidebarOpen}
+            sidebarWide={sourcePreviewOpen}
+            rightPanelOpen={rightPanelOpen}
+            rightPanelWide={inspect !== null}
+          >
+            {/* Docker's browser has no title bar: one toggle pinned to the
             columns' corner, so it never moves as the panel slides. An
             inspected citation or artifact has its own close button there. */}
-          {IN_CONTAINER && !(rightPanelOpen && inspect !== null) ? (
-            <CornerToggle side="end">{rightPanelToggle()}</CornerToggle>
-          ) : null}
-          {/* The same on the left; a source preview's header has its own close. */}
-          {IN_CONTAINER && !sourcePreviewOpen ? (
-            <CornerToggle side="start">
-              <SidebarToggle
-                open={sidebarOpen}
-                controls={LEFT_COLUMN_ID}
-                onToggle={toggleSidebar}
-              />
-            </CornerToggle>
-          ) : null}
-          {/* A preview takes over the left column and widens it, as an
+            {IN_CONTAINER && !(rightPanelOpen && inspect !== null) ? (
+              <CornerToggle side="end">{rightPanelToggle()}</CornerToggle>
+            ) : null}
+            {/* The same on the left; a source preview's header has its own close. */}
+            {IN_CONTAINER && !sourcePreviewOpen ? (
+              <CornerToggle side="start">
+                <SidebarToggle
+                  open={sidebarOpen}
+                  controls={LEFT_COLUMN_ID}
+                  onToggle={toggleSidebar}
+                />
+              </CornerToggle>
+            ) : null}
+            {/* A preview takes over the left column and widens it, as an
             inspected artifact does the right one; the right panel stays put.
             On a narrow window it gives way first, down to the sidebar's
             minimum, before the right panel does: the chat keeps its own. */}
-          <SidebarColumn id={LEFT_COLUMN_ID} peekable>
-            {sidebarNode}
-          </SidebarColumn>
-          {/* Hidden, the sidebar has no edge to drag. */}
-          {sidebarOpen ? (
-            <ColumnEdge
-              column="sidebar"
-              label={intl.formatMessage({
-                id: "dashboard_sidebar_resize_aria",
-                defaultMessage: "Resize sidebar",
-              })}
-              controls={LEFT_COLUMN_ID}
-            />
-          ) : null}
-          <ChatColumn>
-            {renderChat(
-              // Hidden, the chat's header runs under the corner toggle: keep its
-              // slot. -ml-3 undoes the 12 px of its px-5 over the corner's 8.
-              IN_CONTAINER && !sidebarOpen ? (
-                <CornerToggleSlot className="-ml-3" />
-              ) : null,
-              // Hidden, the chat's header runs under the corner toggle: keep its slot.
-              IN_CONTAINER && !rightPanelOpen ? (
-                <CornerToggleSlot className="-mr-1" />
-              ) : null
-            )}
-          </ChatColumn>
-          {/* Collapsed, the rail has no edge to drag. */}
-          {rightPanelOpen ? (
-            <ColumnEdge
-              column="rightPanel"
-              label={intl.formatMessage({
-                id: "dashboard_right_panel_resize_aria",
-                defaultMessage: "Resize right panel",
-              })}
-              controls={RIGHT_PANEL_ID}
-            />
-          ) : null}
-          <RightPanelRail open={rightPanelOpen}>
-            <div id={RIGHT_PANEL_ID} className="h-full min-h-0">
-              <RightPanel
-                toggle={
-                  IN_CONTAINER ? <CornerToggleSlot className="-mr-1" /> : null
-                }
-                inspect={detailNode}
-                studio={
-                  <StudioPanel
-                    workspaceId={workspace.id}
-                    documents={sources.documents}
-                    selectedDocumentIds={sources.includedDocumentIds}
-                    sourceScope={sources.sourceScope}
-                    onSelectionChange={sources.setDocumentIncluded}
-                    onToggleAll={sources.toggleAllIncluded}
-                    formats={studio.formats}
-                    isCreating={studio.isCreating}
-                    error={studio.error}
-                    onGenerate={studio.create}
-                    onSetUpVoices={onOpenAudioSettings}
-                  />
-                }
-                artifacts={
-                  <ArtifactList
-                    workspaceId={workspace.id}
-                    artifacts={studio.artifacts}
-                    formats={studio.formats}
-                    isLoading={studio.isLoading}
-                    onOpen={openArtifact}
-                    onRegenerate={studio.regenerate}
-                    onCancel={studio.cancel}
-                    onDelete={studio.remove}
-                  />
-                }
+            <SidebarColumn id={LEFT_COLUMN_ID} peekable>
+              {sidebarNode}
+            </SidebarColumn>
+            {/* Hidden, the sidebar has no edge to drag. */}
+            {sidebarOpen ? (
+              <ColumnEdge
+                column="sidebar"
+                label={intl.formatMessage({
+                  id: "dashboard_sidebar_resize_aria",
+                  defaultMessage: "Resize sidebar",
+                })}
+                controls={LEFT_COLUMN_ID}
               />
-            </div>
-          </RightPanelRail>
-        </DashboardColumns>
-        {jobsDialog}
-      </OpenArtifactContext.Provider>
+            ) : null}
+            <ChatColumn>
+              {renderChat(
+                // Hidden, the chat's header runs under the corner toggle: keep its
+                // slot. -ml-3 undoes the 12 px of its px-5 over the corner's 8.
+                IN_CONTAINER && !sidebarOpen ? (
+                  <CornerToggleSlot className="-ml-3" />
+                ) : null,
+                // Hidden, the chat's header runs under the corner toggle: keep its slot.
+                IN_CONTAINER && !rightPanelOpen ? (
+                  <CornerToggleSlot className="-mr-1" />
+                ) : null
+              )}
+            </ChatColumn>
+            {/* Collapsed, the rail has no edge to drag. */}
+            {rightPanelOpen ? (
+              <ColumnEdge
+                column="rightPanel"
+                label={intl.formatMessage({
+                  id: "dashboard_right_panel_resize_aria",
+                  defaultMessage: "Resize right panel",
+                })}
+                controls={RIGHT_PANEL_ID}
+              />
+            ) : null}
+            <RightPanelRail open={rightPanelOpen}>
+              <div id={RIGHT_PANEL_ID} className="h-full min-h-0">
+                <RightPanel
+                  toggle={
+                    IN_CONTAINER ? <CornerToggleSlot className="-mr-1" /> : null
+                  }
+                  inspect={detailNode}
+                  studio={
+                    <StudioPanel
+                      workspaceId={workspace.id}
+                      documents={sources.documents}
+                      selectedDocumentIds={sources.includedDocumentIds}
+                      sourceScope={sources.sourceScope}
+                      onSelectionChange={sources.setDocumentIncluded}
+                      onToggleAll={sources.toggleAllIncluded}
+                      formats={studio.formats}
+                      isCreating={studio.isCreating}
+                      error={studio.error}
+                      onGenerate={studio.create}
+                      onSetUpVoices={onOpenAudioSettings}
+                    />
+                  }
+                  artifacts={
+                    <ArtifactList
+                      workspaceId={workspace.id}
+                      artifacts={studio.artifacts}
+                      formats={studio.formats}
+                      isLoading={studio.isLoading}
+                      onOpen={openArtifact}
+                      onRegenerate={studio.regenerate}
+                      onCancel={studio.cancel}
+                      onDelete={studio.remove}
+                    />
+                  }
+                />
+              </div>
+            </RightPanelRail>
+          </DashboardColumns>
+          {jobsDialog}
+        </OpenArtifactContext.Provider>
+      </CanvasFileLinksProvider>
     </OfficeOfferContext.Provider>
   )
 }

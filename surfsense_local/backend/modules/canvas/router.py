@@ -12,6 +12,8 @@ from modules.canvas.client import (
     CanvasUnreachableError,
 )
 from modules.canvas.consent import require_school
+from modules.canvas.course_view.read import read_course_view
+from modules.canvas.course_view.schemas import CourseView
 from modules.canvas.models import CanvasConnection
 from modules.canvas.runlog.logged_run import logged
 from modules.canvas.runlog.schemas import RunLogRead
@@ -48,6 +50,15 @@ def _status(row: CanvasConnection | None) -> ConnectionStatus:
         refreshed_at=row.refreshed_at,
         refresh_error=row.refresh_error,
     )
+
+
+@router.get(
+    "/workspaces/{workspace_id}/course",
+    response_model=CourseView,
+    summary="A synced class's modules, as the Modules view shows them",
+)
+def read_course(workspace_id: int, session: SessionDep) -> CourseView:
+    return read_course_view(session, workspace_id)
 
 
 @router.get(

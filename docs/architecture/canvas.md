@@ -16,6 +16,7 @@ One row, `canvas_connection` ([data model](data-model.md#canvas_connection)): th
 | `PUT /canvas/connection` | takes `base_url` and `token`, asks Canvas who the token belongs to (`/users/self`), and keeps both, leaving `auto_refresh` as it was and clearing `refresh_error`, since a new token may be the fix for a refused one. A refusal is `422 canvas_token_refused`, an address that is not plain https off this computer is `422 canvas_needs_https`, and an unreachable Canvas is `502 canvas_unreachable` |
 | `DELETE /canvas/connection` | forgets the token, and is `204` whether or not there was one |
 | `GET /canvas/log` | the last Sync or Check's log, from `after`, for the screen to poll ([The run log](#the-run-log)) |
+| `GET /canvas/workspaces/{id}/course` | a synced class's modules in Canvas's order, each item tied to the source it became, for the [Modules view](#the-modules-view). `synced: false` for a workspace Canvas did not make, and for a class not synced since the outline was kept, which also answers `needs_sync: true` |
 
 An address is read as the user typed or pasted it: a bare host is https, and a path after the host is dropped. Plain http is allowed only on this computer, where the token never crosses a network ([`address.py`](../../surfsense_local/backend/modules/canvas/address.py)).
 
@@ -29,7 +30,7 @@ The school's host is its own destination, asked about with the purpose `canvas` 
 
 Canvas is read, and files are fetched, with no database session open, because a long read must not hold SQLite's write lock, which every other request waits on. Per course:
 
-1. **Read** the course ([`snapshot.py`](../../surfsense_local/backend/modules/canvas/sync/snapshot.py)): syllabus, assignments with the student's submission, announcements, modules with their items, every page and every file a module holds. A course may turn its Pages tab off, which Canvas answers with `404`; its pages stay readable through the modules that hold them.
+1. **Read** the course ([`snapshot.py`](../../surfsense_local/backend/modules/canvas/sync/snapshot.py)): syllabus, assignments with the student's submission, announcements, modules with their items, every page and every file a module holds, and every file the course's text links to or an announcement attaches ([`linked_files.py`](../../surfsense_local/backend/modules/canvas/sync/linked_files.py)). A link counts when it names `/courses/{this course}/files/{id}` on the school's host, as a page, a preview or a download, with or without a query. A linked file Canvas refuses or whose type SurfSense cannot store is skipped, and the run log says so with `file_skipped`. A relative Canvas path in synced text is made the school's address ([`html_text.py`](../../surfsense_local/backend/modules/canvas/html_text.py)). A course may turn its Pages tab off, which Canvas answers with `404`; its pages stay readable through the modules that hold them.
 2. **Ask** egress about the hosts its files' links name.
 3. **Write**, in one transaction: the workspace, its folders, the notes, the tasks, and any file already held filed in its module's folder. A file not yet held is left for the next step.
 4. **Queue** each note whose text is new or changed to be read, after the commit, since the worker is another process.
@@ -45,14 +46,29 @@ A client that follows `Link` headers pages every list; one that points at anothe
 |---|---|---|
 | `course` | the course | the workspace, named for the course and renamed with it |
 | `term` | the term | a [workspace folder](workspace-folders.md#canvas-sync), named for the term and renamed with it, that holds the term's workspaces |
-| `overview_folder`, `unsorted_folder` | the course | the `Overview` folder of summary notes, and `Unsorted` for a page in no module |
+| `overview_folder`, `unsorted_folder` | the course | the `Overview` folder of summary notes, and `Unsorted` for a page or assignment in no module |
 | `module` | the module | its folder, such as `02 · Module B Threats`: numbered by position, the teacher's leading dates dropped, renamed as the module is |
 | `syllabus_note`, `assignments_note`, `announcements_note`, `modules_note`, `links_note` | the course | a summary note titled `Canvas · Syllabus` and so on, left out when empty. `Canvas · Links` lists each module's external links with their addresses, as a markdown link each, since the Modules note names a link but cannot be followed from |
 | `page` | the page | a note titled `Canvas · Page · <title>`, filed in its module's folder, retitled and moved as the page is |
-| `file` | the file | a document titled as an upload is (its last path segment), moved with its module, with the file's size and modified time kept to tell an edit |
+| `file` | the file | a document titled as an upload is (its last path segment), moved with its module, with the file's size and modified time kept to tell an edit. A file only the text links to, or an announcement attaches, is filed in the `Canvas files` folder instead; a file a module also holds stays in its module |
+| `attachments_folder` | the course | the `Canvas files` folder at the top of the class's Library, made only when a class has such a file, and never renamed back after the student renames it |
 | `assignment` | the assignment | a [task](todos.md) |
+| `assignment_note` | the assignment (a graded quiz or discussion is the assignment too) | a note titled `Canvas · Assignment · <name>` with its due date, points and description, filed in the folder of the first module holding it, or in `Unsorted` for an assignment in no module, and retitled as the assignment is |
+| `textbook_folder` | the course | the `Textbook` folder at the top of the class's Library, made once, never written into by a sync, and left as the student renames it |
 
 What the user made earlier is adopted once instead of remade: a workspace named exactly for the course, a top-level folder with a module's name, a note with the same title, and a file with the same title in one of the course's folders. A link to something the user deleted is made good again, except a task, which stays deleted. Nothing is ever deleted because Canvas dropped it.
+
+Canvas keeps rich text as HTML. A note keeps its words, each link as a markdown link and each picture as a markdown image; a picture inlined as `data:` keeps only its description ([`html_text.py`](../../surfsense_local/backend/modules/canvas/html_text.py)).
+
+## The Modules view
+
+A synced class can be shown the way Canvas shows its Modules page. No migration backs it, so a rollback to an older image needs no database restore.
+
+- **What is saved.** Each sync keeps the course's modules in the `Canvas · Modules` note's `document_metadata`, under `canvas_modules` ([`sync/outline.py`](../../surfsense_local/backend/modules/canvas/sync/outline.py)): per module its items in Canvas's order, headers and links included, each with its type, title, Canvas id (page, file or assignment), link address, due date and points. Items carry Canvas ids, not local ones, so a file not yet fetched costs nothing. The note's edit route changes only its title and text, so a user's edit leaves the outline alone, and a change to the outline alone queues no re-read of the note. A course left with no modules makes no Modules note, so the sync empties the kept note's outline instead.
+- **What is read.** `GET /canvas/workspaces/{id}/course` ([`course_view/`](../../surfsense_local/backend/modules/canvas/course_view/)) resolves the outline against `canvas_links` and the workspace, and returns for each item the document it became, if one exists here, and for each module its folder, if the module held any source. It also returns the Textbook folder, the ids of the Syllabus, Announcements, Assignments and Links notes, and `files`, a map from each Canvas file id the workspace holds, module files and linked files alike, to the document it became.
+- **Links to Canvas files.** A note keeps the Canvas link. In a note reader (the Canvas tabs and the source preview), a link whose file id is in `files` opens that source in the preview window instead of leaving for Canvas ([`canvas-file-links.tsx`](../../surfsense_local/frontend/src/features/sources/course-view/canvas-file-links.tsx), [`canvas-aware-link.tsx`](../../surfsense_local/frontend/src/features/chat/canvas-aware-link.tsx)). Any other link is the reader's own link, with its safety check.
+- **What is shown.** For a class with `synced: true` or `needs_sync: true`, the Sources panel shows a Files / Canvas switch ([`features/sources/course-view/`](../../surfsense_local/frontend/src/features/sources/course-view/)). Files is the tree as always. Canvas is a row of tabs (Modules, Syllabus, Announcements and Assignments when those notes exist, Textbook, Links), each shown in place. Modules is one block per module; Syllabus, Announcements, Assignments and Links read the class's Overview note of that name, and Textbook is described below. A module header and each page, file or assignment carry the tick boxes the tree has, through the same selection, so the chat reads ticks made in either view. A module header also counts the rows it shows that are filed in another module's folder, and ticks them with its folder. A link opens in a new tab and has no box. A header with no folder has no box. On a phone it opens from the same sources bar as the tree.
+- **The Textbook.** The chip shows the books in the class's `Textbook` folder and an **Import textbook** button, which uploads PDF, EPUB, MOBI or AZW3 files into that folder. Nothing is guessed from Canvas, which sends no book text.
 
 ## Tasks
 
@@ -95,4 +111,10 @@ Sync and Check answer once, at the end. While one runs, [`modules/canvas/runlog/
 - The background pass adds no classes: a new term's first classes need one Sync now, and nothing says so.
 - A handed-in assignment the student unchecked is checked again by the next pass, since `sync_tasks` marks an unchecked task done whenever the work is handed in.
 - An open to-do dialog shows what a pass found only after it is reopened or refetches.
-- Discussions, quizzes and grades are not read, and one school is connected at a time.
+- Discussions, quizzes and grades are not read, beyond the assignment a graded quiz or discussion is, and one school is connected at a time.
+- A linked file of a type SurfSense cannot store (an old `.doc`, for example), or one Canvas refuses, keeps its Canvas link. Check for changes compares module files only, so it neither sees edits to linked files nor reports them gone, and there is no size cap. A note's link opens a held file by its Canvas file id alone, not by school or course.
+- A class with no modules has no Modules note, so it has no outline: its Canvas switch asks for a sync that never changes that.
+- A class synced before the outline was kept shows a Canvas switch with one line telling the student to run Sync now, and nothing more until they do.
+- A graded quiz or discussion is tied to its assignment by the quiz's or topic's id, as Canvas's assignment object names them. That mapping was written from the API's description and has not been run against a school with quizzes.
+- Edits to a summary note's text, the Modules note included, are replaced by the next sync that changes Canvas's text.
+- A note is adopted by title anywhere in the workspace, so a note in `Textbook` titled as a Canvas note would be adopted and moved out.

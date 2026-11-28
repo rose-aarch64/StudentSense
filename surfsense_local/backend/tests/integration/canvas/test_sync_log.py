@@ -133,6 +133,43 @@ async def test_a_file_the_same_as_one_already_held_is_skipped_not_failed(
     assert first(log, "finished")["params"]["errors"] == 0
 
 
+async def test_an_unsupported_linked_file_writes_one_file_skipped_line(
+    client: AsyncClient, canvas_site: CanvasSite
+) -> None:
+    """The student is told why a linked file stayed a Canvas link."""
+    canvas_site.courses = [course(1, "Bio")]
+    data = canvas_site.course(1)
+    data.files = {59: ("Old hours.doc", b"x")}
+    data.syllabus = '<a href="/courses/1/files/59">hours</a>'
+    await connect(client, canvas_site)
+
+    synced = await client.post("/canvas/sync", json={})
+
+    assert synced.status_code == 200, synced.text
+    log = await shown(client)
+    assert codes(log).count("file_skipped") == 1
+    skipped = first(log, "file_skipped")
+    assert (skipped["level"], skipped["params"]) == ("info", {"name": "Old hours.doc"})
+
+
+async def test_a_linked_file_whose_download_fails_writes_file_failed(
+    client: AsyncClient, canvas_site: CanvasSite
+) -> None:
+    """A refused download is an error line, and the rest of the class goes on."""
+    canvas_site.courses = [course(1, "Bio")]
+    data = canvas_site.course(1)
+    data.files = {56: ("Handout.pdf", PDF)}
+    data.syllabus = '<a href="/courses/1/files/56">h</a>'
+    canvas_site.broken_downloads.add(56)
+    await connect(client, canvas_site)
+
+    synced = await client.post("/canvas/sync", json={})
+
+    assert synced.status_code == 200, synced.text
+    failed = first(await shown(client), "file_failed")
+    assert (failed["level"], failed["params"]) == ("error", {"name": "Handout.pdf"})
+
+
 async def test_a_second_sync_does_not_log_a_file_it_already_holds(
     client: AsyncClient, canvas_site: CanvasSite
 ) -> None:

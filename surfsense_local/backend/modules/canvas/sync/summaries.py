@@ -1,9 +1,12 @@
 from dataclasses import dataclass
 
 from modules.canvas.html_text import html_to_text
+from modules.canvas.sync.outline import OUTLINE_KEY, build_outline
 from modules.canvas.sync.snapshot import CourseSnapshot
 
 TITLE_PREFIX = "Canvas · "
+# Link kind of the summary note that also keeps the course's outline.
+MODULES_NOTE = "modules_note"
 
 
 @dataclass(frozen=True)
@@ -13,6 +16,8 @@ class Summary:
     kind: str
     title: str
     content: str
+    # Saved with the note and left alone by edits to its text.
+    metadata: dict | None = None
 
 
 def build_summaries(snapshot: CourseSnapshot) -> list[Summary]:
@@ -28,10 +33,13 @@ def build_summaries(snapshot: CourseSnapshot) -> list[Summary]:
         (
             "announcements_note",
             "Announcements",
-            "\n\n".join(_announcement_block(a) for a in snapshot.announcements),
+            "\n\n".join(
+                _announcement_block(a, snapshot.base_url)
+                for a in snapshot.announcements
+            ),
         ),
         (
-            "modules_note",
+            MODULES_NOTE,
             "Modules",
             "\n\n".join(_module_block(m) for m in snapshot.modules),
         ),
@@ -41,8 +49,14 @@ def build_summaries(snapshot: CourseSnapshot) -> list[Summary]:
             "\n\n".join(block for m in snapshot.modules if (block := _links_block(m))),
         ),
     ]
+    outline = {OUTLINE_KEY: build_outline(snapshot)}
     return [
-        Summary(kind, f"{TITLE_PREFIX}{name}", f"# {name}\n\n{body}")
+        Summary(
+            kind,
+            f"{TITLE_PREFIX}{name}",
+            f"# {name}\n\n{body}",
+            metadata=outline if kind == MODULES_NOTE else None,
+        )
         for kind, name, body in sections
         if body
     ]
@@ -57,9 +71,10 @@ def _assignment_line(assignment: dict) -> str:
     return f"- {assignment.get('name')} | due {due} | {shown} pts | {state}"
 
 
-def _announcement_block(post: dict) -> str:
+def _announcement_block(post: dict, base_url: str) -> str:
     posted = (post.get("posted_at") or "")[:10]
-    return f"## {post.get('title')} ({posted})\n{html_to_text(post.get('message'))}"
+    message = html_to_text(post.get("message"), base_url)
+    return f"## {post.get('title')} ({posted})\n{message}"
 
 
 def _links_block(module) -> str:

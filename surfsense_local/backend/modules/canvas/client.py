@@ -27,6 +27,11 @@ class CanvasClient:
             timeout=TIMEOUT_SECONDS,
         )
 
+    @property
+    def origin(self) -> str:
+        """The school's address, with no trailing slash."""
+        return str(self._origin).rstrip("/")
+
     def __enter__(self) -> "CanvasClient":
         return self
 

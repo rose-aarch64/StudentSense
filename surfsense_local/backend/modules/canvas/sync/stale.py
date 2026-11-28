@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from modules.canvas import links
 from modules.canvas.client import CanvasClient
 from modules.canvas.runlog.log import NULL_HANDLE, RunHandle
+from modules.canvas.sync.attachments_folder import ATTACHMENTS
 from modules.canvas.sync.connection import read_connection
 from modules.canvas.sync.files import changed_titles, gone_titles
 from modules.canvas.sync.snapshot import read_file_refs
@@ -54,8 +55,13 @@ def check_stale(
                     name=_name_of(course),
                     workspace_id=workspace_id,
                     changed=changed_titles(session, refs),
+                    # Only module files are read here, so files the text links
+                    # to are not ones this check could find missing.
                     gone=gone_titles(
-                        session, workspace_id, {ref.file_id for ref in refs}
+                        session,
+                        workspace_id,
+                        {ref.file_id for ref in refs},
+                        links.linked_id(session, ATTACHMENTS, course["id"]),
                     ),
                 )
             checked.append(compared)

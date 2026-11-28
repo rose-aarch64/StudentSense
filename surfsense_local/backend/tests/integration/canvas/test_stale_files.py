@@ -48,6 +48,22 @@ def downloads(site: CanvasSite) -> list[str]:
     return [r.url.path for r in site.asked if r.url.path.startswith("/download/")]
 
 
+async def test_a_file_the_text_links_to_is_not_reported_gone_by_the_check(
+    client: AsyncClient, canvas_site: CanvasSite
+) -> None:
+    """The check reads module files only; a linked file is not one it can miss."""
+    await start(client, canvas_site)
+    data = canvas_site.course(1)
+    data.files[56] = ("Handout.pdf", NEW)
+    data.syllabus = '<a href="/courses/1/files/56">handout</a>'
+    synced = await sync(client)
+    assert (await document(client, synced["workspace_id"], "Handout.pdf"))["id"]
+
+    checked = await stale(client)
+
+    assert checked["gone"] == []
+
+
 async def test_a_file_that_has_not_changed_is_not_stale(
     client: AsyncClient, canvas_site: CanvasSite
 ) -> None:

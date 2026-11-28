@@ -1,4 +1,11 @@
-import { memo, useCallback, useMemo, useRef, useState } from "react"
+import {
+  memo,
+  useCallback,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react"
 import { FilePlus2Icon, SearchIcon } from "@/components/ui/icons"
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
@@ -26,6 +33,7 @@ import { SkeletonSlabs } from "@/components/ui/skeleton"
 import { GuideLink } from "@/features/guides/guide-link"
 import { AddSourcesMenu, type SourceUploads } from "./add-sources-menu"
 import type { WorkspaceDocument } from "./api"
+import { ViewSwitch, type SourcesView } from "./course-view/view-switch"
 import type { UploadEntry } from "./folder-upload/upload-plan"
 import {
   NoteEditorDialog,
@@ -107,6 +115,7 @@ export const SourcesPanel = memo(function SourcesPanel({
   web,
   transcriptionPaces,
   onOpenSpeechSettings,
+  courseView,
 }: {
   // Absent, which folders are open is not kept past this panel.
   workspaceId?: number
@@ -146,6 +155,9 @@ export const SourcesPanel = memo(function SourcesPanel({
   transcriptionPaces?: ReadonlyMap<number, TranscriptionPace>
   // Opens Settings › Speech recognition; absent, a waiting recording only says so.
   onOpenSpeechSettings?: () => void
+  // A synced class's modules. Given, a Files / Modules switch shows above the
+  // list and Modules replaces the tree; absent, the panel is as it always was.
+  courseView?: ReactNode
 }) {
   const flatIndex = useMemo(() => indexSources([], documents), [documents])
   const index = givenIndex ?? flatIndex
@@ -175,6 +187,7 @@ export const SourcesPanel = memo(function SourcesPanel({
     workspaceId ?? null,
     index
   )
+  const [view, setView] = useState<SourcesView>("files")
   const [filter, setFilter] = useState("")
   const [filterOpen, setFilterOpen] = useState(false)
   // Focus goes to the search button once it mounts in the field's place.
@@ -424,8 +437,11 @@ export const SourcesPanel = memo(function SourcesPanel({
           </div>
         ) : null}
         {listHeader}
+        {courseView ? <ViewSwitch value={view} onChange={setView} /> : null}
         <ScrollFade ref={listScroller} className="min-h-0 flex-1">
-          {isLoading ? (
+          {courseView && view === "modules" ? (
+            courseView
+          ) : isLoading ? (
             <SkeletonSlabs />
           ) : documents.length > 0 || hasFolders ? (
             <SourceTree

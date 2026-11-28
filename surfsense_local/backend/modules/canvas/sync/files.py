@@ -148,18 +148,28 @@ def changed_titles(session: Session, refs: list[FileRef]) -> list[str]:
     return changed
 
 
-def gone_titles(session: Session, workspace_id: int, present: set[int]) -> list[str]:
-    """Titles of the files kept for this workspace that Canvas no longer lists.
+def gone_titles(
+    session: Session,
+    workspace_id: int,
+    present: set[int],
+    except_folder_id: int | None = None,
+) -> list[str]:
+    """Titles of the files kept for this workspace that Canvas no longer lists,
+    leaving out those in `except_folder_id`.
 
     Reported and never deleted: the student may still want them.
     """
-    rows = session.execute(
+    query = (
         select(CanvasLink.canvas_id, Document.title)
         .join(Document, Document.id == CanvasLink.local_id)
         .where(CanvasLink.kind == FILE, Document.workspace_id == workspace_id)
         .order_by(Document.id)
     )
-    return [title for canvas_id, title in rows if canvas_id not in present]
+    if except_folder_id is not None:
+        query = query.where(Document.folder_id != except_folder_id)
+    return [
+        title for canvas_id, title in session.execute(query) if canvas_id not in present
+    ]
 
 
 def _metadata(mime_type: str, size: int, suffix: str, ref: FileRef) -> dict:
